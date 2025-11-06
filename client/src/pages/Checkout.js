@@ -14,7 +14,7 @@ const Checkout = () => {
       .join("\n")}\n\nTotal: ₹${total}`;
 
     const encodedMessage = encodeURIComponent(message);
-    const phoneNumber = "919696400628";
+    const phoneNumber = "************"; // Add your contact number
     window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
 
     // ✅ Clear cart after order
