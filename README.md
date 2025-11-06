@@ -10,6 +10,8 @@
 <img width="1919" height="1024" alt="Screenshot 2025-11-06 111444" src="https://github.com/user-attachments/assets/5b44596b-eb1f-426d-bf69-8736165e6047" />
 
 
+Add your contact number in server>routes>payment.js and in client>drc>pages>Checkout.js
+
 
 
 
