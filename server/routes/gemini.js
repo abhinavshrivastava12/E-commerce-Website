@@ -1,3 +1,4 @@
+// 📁 server/routes/gemini.js
 const express = require("express");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 require("dotenv").config();
@@ -9,33 +10,42 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 router.post("/", async (req, res) => {
   try {
-    const { prompt, products } = req.body;
+    const { prompt, products, userName } = req.body; // User name receive kiya
 
-    // Use the official model name
-   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const chatPrompt = `
-      You are an AI Shopping Assistant.
-      User Query: "${prompt}"
+      You are a helpful and friendly AI Assistant for 'Abhi ShoppingZone'. 
+      The user's name is: "${userName || "Guest"}".
+      
+      Your goals:
+      1. If this is the start of the conversation, welcome the user warmly by their name.
+      2. You have access to the Product Catalog below. If the user asks about product specifications, price, or details, provide accurate info from the catalog.
+      3. If the user asks general questions (not about shopping), be helpful and answer them nicely (e.g., "How are you?", "Tell me a joke", etc.).
+      4. DO NOT be restricted to just shopping. You are a smart assistant.
 
       Product Catalog:
       ${JSON.stringify(products)}
 
-      STRICT INSTRUCTION: 
-      Return ONLY a raw JSON object. Do not wrap it in markdown (no \`\`\`json tags).
+      STRICT OUTPUT FORMAT:
+      You must ONLY return a raw JSON object. Do not use markdown formatting.
       
-      Format:
+      Example Format:
       {
-       "response": "A friendly text response answering the user",
-       "products": [ { "id": 123, "name": "Product Name", "price": 100, "rating": 4.5 } ]
+       "response": "Hello Abhinav! Welcome to Abhi ShoppingZone. How can I help you today?",
+       "products": [ { "id": 123, "name": "Product Name", "price": 100 } ] 
       }
+      
+      (Note: 'products' array should only be filled if you are recommending specific items from the catalog based on the user's query. Otherwise keep it empty).
+
+      User Query: "${prompt}"
     `;
 
     const result = await model.generateContent(chatPrompt);
     const response = await result.response;
     let text = response.text();
 
-    // CLEANUP: Remove markdown code blocks if the AI adds them
+    // CLEANUP: Remove markdown code blocks if present
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
     let output;
@@ -43,7 +53,7 @@ router.post("/", async (req, res) => {
       output = JSON.parse(text);
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
-      // Fallback if AI returns malformed JSON
+      // Fallback plain text response
       output = { 
         response: text, 
         products: [] 
@@ -54,9 +64,10 @@ router.post("/", async (req, res) => {
 
   } catch (err) {
     console.error("🔥 Gemini API Error:", err);
+    // Agar API key invalid hai ya quota full hai
     res.status(500).json({
-      error: "Gemini API Error",
-      details: err.message,
+      response: "⚠️ My brain is currently offline (API Error). Please check the server console.",
+      products: []
     });
   }
 });
