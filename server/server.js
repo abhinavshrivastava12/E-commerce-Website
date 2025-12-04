@@ -18,11 +18,17 @@ const productRoutes = require('./routes/products'); // optional
 const orderRoutes = require('./routes/orders');
 const paymentRoutes = require('./routes/payment'); // ✅ for WhatsApp link
 // const reviewRoutes = require('./routes/reviewRoutes'); // if added
+const reviewRoutes = require('./routes/reviews');
+const chatRoutes = require('./routes/chat');
+const geminiRoutes = require("./routes/gemini");
 
 // 🔗 Use Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/chat', chatRoutes);
+app.use("/api/gemini", geminiRoutes); 
 // app.use('/api/reviews', reviewRoutes); // optional
 // app.use('/api/products', productRoutes); // if you use product DB
 
@@ -35,3 +41,5 @@ mongoose.connect(process.env.MONGO_URI)
     );
   })
   .catch((err) => console.error('❌ MongoDB Error:', err));
+  console.log("BACKEND GEMINI KEY:", process.env.GEMINI_API_KEY);
+

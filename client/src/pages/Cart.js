@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 import { useCart } from "../context/CartContext";
 import { Link } from "react-router-dom";
+import { toast } from "react-toastify";
+
 
 const Cart = () => {
   const { cart, removeFromCart, updateQuantity } = useCart();
