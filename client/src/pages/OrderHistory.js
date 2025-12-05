@@ -1,4 +1,4 @@
-// 📁 client/src/pages/OrderHistory.js - COMPLETE FIXED VERSION
+// 📁 client/src/pages/OrderHistory.js - COMPLETE FIX
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
@@ -12,49 +12,71 @@ const OrderHistory = () => {
   const [darkMode, setDarkMode] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ FIX: useCallback wrap kiya
   const fetchOrders = useCallback(async () => {
-    if (!user || !user.token) {
+    // ✅ Check if user exists and has token
+    if (!user) {
+      console.log("❌ No user found, redirecting to login");
       toast.error("Please login to view orders");
+      navigate("/login");
+      return;
+    }
+
+    if (!user.token) {
+      console.log("❌ No token found, redirecting to login");
+      toast.error("Session expired. Please login again.");
+      logout();
       navigate("/login");
       return;
     }
 
     setLoading(true);
     try {
+      console.log("🔄 Fetching orders for user:", user.id);
+      
       const res = await axios.get("http://localhost:5000/api/orders/my", {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
       });
+
+      console.log("✅ Orders fetched successfully:", res.data);
       setOrders(res.data);
     } catch (err) {
       console.error("❌ Failed to fetch orders:", err);
-      if (err.response && (err.response.status === 401 || err.response.status === 403)) {
-        toast.error("Session expired. Please login again.");
-        logout();
-        navigate("/login");
+      
+      if (err.response) {
+        if (err.response.status === 401 || err.response.status === 403) {
+          toast.error("Session expired. Please login again.");
+          logout();
+          navigate("/login");
+        } else {
+          toast.error("Failed to load orders: " + (err.response.data.error || "Unknown error"));
+        }
+      } else if (err.request) {
+        toast.error("Cannot connect to server. Please check if server is running.");
       } else {
         toast.error("Failed to load orders");
       }
     } finally {
       setLoading(false);
     }
-  }, [user, navigate, logout]); // ✅ Dependencies add kiye
+  }, [user, navigate, logout]);
 
   useEffect(() => {
     document.title = "Abhi ShoppingZone - Order History";
     fetchOrders();
-  }, [fetchOrders]); // ✅ fetchOrders ko dependency mein add kiya
+  }, [fetchOrders]);
 
-  // ... rest of the code remains same ...
-  
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className={`min-h-screen flex items-center justify-center ${
+        darkMode ? 'bg-gray-900' : 'bg-gray-50'
+      }`}>
         <div className="text-center">
           <div className="text-6xl mb-4 animate-spin">⏳</div>
-          <p className="text-xl font-bold text-gray-700">Loading your orders...</p>
+          <p className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+            Loading your orders...
+          </p>
         </div>
       </div>
     );
@@ -83,7 +105,7 @@ const OrderHistory = () => {
             📦 Your Order History
           </h1>
           <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-            Track all your orders in one place
+            Track all your orders in one place • Welcome back, {user?.name}!
           </p>
         </div>
 
@@ -226,12 +248,36 @@ const OrderHistory = () => {
                     }`}>
                       🔄 Track Order
                     </button>
+                    <button 
+                      onClick={() => navigate('/')}
+                      className={`flex-1 py-3 rounded-xl font-bold transition-all hover:scale-105 ${
+                        darkMode
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      🛍️ Order Again
+                    </button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
+
+        {/* Refresh Button */}
+        <div className="mt-8 text-center">
+          <button
+            onClick={fetchOrders}
+            className={`px-8 py-3 rounded-full font-bold transition-all hover:scale-105 ${
+              darkMode
+                ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                : 'bg-white hover:bg-gray-50 border-2 border-gray-300'
+            }`}
+          >
+            🔄 Refresh Orders
+          </button>
+        </div>
       </div>
     </div>
   );
