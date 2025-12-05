@@ -12,6 +12,9 @@ import Register from "./pages/Register";
 import OrderHistory from "./pages/OrderHistory";
 import Invoice from "./pages/Invoice";
 import Checkout from "./pages/Checkout";
+import SellerLogin from "./pages/SellerLogin";
+import SellerRegister from "./pages/SellerRegister";
+import SellerDashboard from "./pages/SellerDashboard";
 
 // 📦 Components
 import Header from "./components/Header";
@@ -41,6 +44,9 @@ const AppContent = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/seller/login" element={<SellerLogin />} />
+          <Route path="/seller/register" element={<SellerRegister />} />
+          <Route path="/seller/dashboard" element={<SellerDashboard />} />
           <Route
             path="/orders"
             element={

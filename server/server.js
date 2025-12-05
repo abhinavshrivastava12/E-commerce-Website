@@ -1,4 +1,3 @@
-// 📁 server/server.js - COMPLETE WITH SOCKET.IO
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,7 +8,7 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// ⚡ Socket.IO Setup with CORS
+// Socket.IO Setup
 const io = socketIO(server, {
   cors: {
     origin: process.env.CLIENT_URL || "http://localhost:3000",
@@ -25,15 +24,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Make io accessible to routes
+// Make io accessible
 app.set('io', io);
 
-// 🌐 Default Route
+// Default Route
 app.get('/', (req, res) => {
-  res.send('Abhi ShoppingZone API with Real-time Features is running...');
+  res.send('Abhi ShoppingZone API - Seller Panel Enabled');
 });
 
-// 🔁 Import Routes
+// 🔗 Import Routes
 const authRoutes = require('./routes/auth');
 const orderRoutes = require('./routes/orders');
 const paymentRoutes = require('./routes/payment');
@@ -43,7 +42,11 @@ const geminiRoutes = require("./routes/gemini");
 const couponRoutes = require('./routes/coupons');
 const wishlistRoutes = require('./routes/wishlist');
 
-// 🔗 Use Routes
+// 🆕 SELLER ROUTES
+const sellerAuthRoutes = require('./routes/sellerAuth');
+const sellerProductRoutes = require('./routes/sellerProducts');
+
+// Use Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -53,40 +56,39 @@ app.use("/api/gemini", geminiRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 
-// ⚡ Socket.IO Real-time Chat
+// 🆕 Seller Routes
+app.use('/api/seller/auth', sellerAuthRoutes);
+app.use('/api/seller/products', sellerProductRoutes);
+
+// Socket.IO
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
 
-  // Join product chat room
   socket.on('join-product-chat', (productId) => {
     socket.join(`product-${productId}`);
-    console.log(`User joined product-${productId}`);
   });
 
-  // Send message
   socket.on('send-message', (data) => {
     io.to(`product-${data.productId}`).emit('receive-message', data);
-    console.log('Message sent:', data);
   });
 
-  // User typing indicator
   socket.on('typing', (data) => {
     socket.to(`product-${data.productId}`).emit('user-typing', data);
   });
 
-  // Disconnect
   socket.on('disconnect', () => {
     console.log('❌ User disconnected:', socket.id);
   });
 });
 
-// 🚀 Connect to DB & Start Server
+// Connect to DB & Start Server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected');
     server.listen(process.env.PORT || 5000, () => {
       console.log(`🚀 Server running on port ${process.env.PORT || 5000}`);
-      console.log(`⚡ Socket.IO enabled for real-time chat`);
+      console.log(`⚡ Socket.IO enabled`);
+      console.log(`🏪 Seller Panel Active`);
     });
   })
   .catch((err) => console.error('❌ MongoDB Error:', err));
