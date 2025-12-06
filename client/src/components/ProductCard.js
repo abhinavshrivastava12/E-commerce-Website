@@ -1,5 +1,5 @@
-// 📁 client/src/components/ProductCard.js - FIXED WITH LOGIN CHECK
-import React, { useState } from "react";
+// 📁 client/src/components/ProductCard.js - FIXED WITH WORKING WISHLIST
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -7,31 +7,37 @@ import { toast } from "react-toastify";
 
 const ProductCard = ({ product, featured, darkMode }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isInWishlist, setIsInWishlist] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // ✅ Check if product is in wishlist on mount
+  useEffect(() => {
+    if (user) {
+      const wishlist = JSON.parse(localStorage.getItem(`wishlist_${user.id}`) || "[]");
+      setIsInWishlist(wishlist.some(item => item.id === product.id || item.id === product._id));
+    }
+  }, [user, product]);
 
   const handleAddToCart = (e) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // ✅ Check if user is logged in
     if (!user) {
       toast.warning("⚠️ Please login to add items to cart", {
         position: "top-center",
         theme: darkMode ? "dark" : "light"
       });
       
-      // Redirect to login after short delay
       setTimeout(() => {
         navigate("/login");
       }, 1500);
       return;
     }
 
-    // Add to cart if logged in
     addToCart({
-      id: product.id,
+      id: product.id || product._id,
       name: product.name,
       price: product.price,
       image: product.image,
@@ -44,10 +50,61 @@ const ProductCard = ({ product, featured, darkMode }) => {
     });
   };
 
+  // ✅ Toggle Wishlist
+  const toggleWishlist = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!user) {
+      toast.warning("⚠️ Please login to add to wishlist", {
+        position: "top-center",
+        theme: darkMode ? "dark" : "light"
+      });
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+      return;
+    }
+
+    const wishlistKey = `wishlist_${user.id}`;
+    const wishlist = JSON.parse(localStorage.getItem(wishlistKey) || "[]");
+    const productId = product.id || product._id;
+
+    if (isInWishlist) {
+      // Remove from wishlist
+      const updated = wishlist.filter(item => 
+        (item.id !== productId) && (item._id !== productId)
+      );
+      localStorage.setItem(wishlistKey, JSON.stringify(updated));
+      setIsInWishlist(false);
+      toast.info("💔 Removed from wishlist", {
+        position: "bottom-right",
+        theme: darkMode ? "dark" : "light"
+      });
+    } else {
+      // Add to wishlist
+      const wishlistItem = {
+        id: productId,
+        _id: productId,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        category: product.category
+      };
+      wishlist.push(wishlistItem);
+      localStorage.setItem(wishlistKey, JSON.stringify(wishlist));
+      setIsInWishlist(true);
+      toast.success("❤️ Added to wishlist!", {
+        position: "bottom-right",
+        theme: darkMode ? "dark" : "light"
+      });
+    }
+  };
+
   return (
     <Link
-      to={`/product/${product.id}`}
-      className={`block rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 hover:rotate-1 group ${
+      to={`/product/${product.id || product._id}`}
+      className={`block rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-3 hover:rotate-1 group relative ${
         darkMode ? 'bg-gray-800' : 'bg-white'
       }`}
       onMouseEnter={() => setIsHovered(true)}
@@ -99,6 +156,32 @@ const ProductCard = ({ product, featured, darkMode }) => {
           </div>
         </div>
 
+        {/* Wishlist Button - Fixed */}
+        <button
+          onClick={toggleWishlist}
+          className={`absolute bottom-3 right-3 p-3 rounded-full transition-all duration-300 transform hover:scale-110 z-10 ${
+            isInWishlist
+              ? 'bg-red-500 text-white shadow-lg'
+              : darkMode
+                ? 'bg-gray-700 text-white hover:bg-red-500'
+                : 'bg-white text-gray-600 hover:bg-red-500 hover:text-white'
+          }`}
+        >
+          <svg
+            className="w-6 h-6"
+            fill={isInWishlist ? "currentColor" : "none"}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+            />
+          </svg>
+        </button>
+
         {/* Overlay */}
         <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
         
@@ -142,7 +225,7 @@ const ProductCard = ({ product, featured, darkMode }) => {
             <p className={`text-3xl font-black ${darkMode ? 'text-purple-400' : 'text-red-600'}`}>
               ₹{product.price}
             </p>
-            {product.originalPrice && (
+            {product.originalPrice && product.originalPrice > product.price && (
               <p className={`text-sm line-through ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                 ₹{product.originalPrice}
               </p>

@@ -92,6 +92,7 @@ app.use('/api/gemini', geminiRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/coupons', couponRoutes);
 app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/products', require('./routes/products'));
 
 // Seller Panel
 app.use('/api/seller/auth', sellerAuthRoutes);

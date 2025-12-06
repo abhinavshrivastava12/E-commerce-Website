@@ -1,9 +1,9 @@
-// 📁 client/src/pages/HomePage.js - WITH AI CHATBOT
+// 📁 client/src/pages/HomePage.js - FIXED TO SHOW SELLER PRODUCTS
 import React, { useState, useEffect } from "react";
-import products from "../data/products";
 import ProductCard from "../components/ProductCard";
 import { Link } from "react-router-dom";
 import AIProductChatbot from "../components/AIProductChatbot";
+import axios from "axios";
 
 const categories = ["All", "Electronics", "Clothing", "Groceries", "Home & Kitchen", "Beauty", "Sports"];
 
@@ -14,11 +14,34 @@ const HomePage = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [showAI, setShowAI] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const banners = [
     { title: "Mega Electronics Sale", subtitle: "Up to 50% OFF on Premium Gadgets", bg: "from-purple-600 via-pink-600 to-red-600", emoji: "🎧", particles: "✨" },
     { title: "Fashion Fiesta", subtitle: "New Season Collection - Flat 30% OFF", bg: "from-pink-600 via-rose-600 to-orange-600", emoji: "👗", particles: "🌟" },
     { title: "Grocery Bonanza", subtitle: "Essential Items at Unbeatable Prices", bg: "from-green-600 via-emerald-600 to-teal-600", emoji: "🛒", particles: "💫" }
   ];
+
+  // ✅ Fetch products from backend (including seller products)
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get("http://localhost:5000/api/products/all");
+        console.log("✅ Products loaded:", response.data);
+        setProducts(response.data);
+      } catch (error) {
+        console.error("❌ Error fetching products:", error);
+        // Fallback to empty array if API fails
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   useEffect(() => {
     document.title = "Abhi ShoppingZone - Home";
@@ -31,18 +54,31 @@ const HomePage = () => {
   const filtered = products.filter((p) => {
     const matchesCategory = selectedCategory === "All" || p.category === selectedCategory;
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    return matchesCategory && matchesSearch && p.isActive; // Only show active products
   });
 
   const featured = filtered.filter(p => p.featured).slice(0, 4);
   const trending = filtered.filter(p => p.trending).slice(0, 6);
   const bestSellers = filtered.filter(p => p.bestSeller).slice(0, 4);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-spin">⏳</div>
+          <p className="text-xl font-bold text-gray-700">Loading Products...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'}`}>
       <button onClick={() => setDarkMode(!darkMode)} className={`fixed top-24 right-6 z-50 p-4 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-110 ${darkMode ? 'bg-yellow-400 text-gray-900' : 'bg-gray-900 text-yellow-400'}`}>
         {darkMode ? '☀️' : '🌙'}
       </button>
+      
+      {/* Banner Slider */}
       <div className="relative h-[600px] overflow-hidden">
         {banners.map((banner, index) => (
           <div key={index} className={`absolute inset-0 transition-all duration-1000 ease-in-out`} style={{ transform: `translateX(${(index - currentSlide) * 100}%)`, opacity: index === currentSlide ? 1 : 0 }}>
@@ -71,13 +107,17 @@ const HomePage = () => {
           ))}
         </div>
       </div>
+
       <div className="max-w-7xl mx-auto px-6 py-16">
+        {/* Search */}
         <div className="mb-12">
           <div className="relative max-w-3xl mx-auto">
             <div className={`absolute inset-0 rounded-full blur-xl opacity-30 ${darkMode ? 'bg-purple-600' : 'bg-red-400'}`}></div>
             <input type="text" placeholder="🔍 Search for products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className={`relative w-full px-8 py-5 rounded-full border-2 focus:outline-none shadow-2xl text-lg transition-all duration-300 ${darkMode ? 'bg-gray-800 border-gray-700 text-white focus:border-purple-500' : 'bg-white border-gray-300 text-gray-900 focus:border-red-600'}`} />
           </div>
         </div>
+
+        {/* Categories */}
         <div className="mb-16 flex flex-wrap justify-center gap-4">
           {categories.map((cat) => (
             <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-110 shadow-lg hover:shadow-2xl ${selectedCategory === cat ? darkMode ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-purple-500/50" : "bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-red-500/50" : darkMode ? "bg-gray-800 text-white border-2 border-gray-700" : "bg-white text-gray-700 border-2 border-gray-200"}`}>
@@ -85,6 +125,8 @@ const HomePage = () => {
             </button>
           ))}
         </div>
+
+        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-16">
           {[
             { icon: "🚚", label: "Free Delivery", value: "On orders over ₹500", color: "from-blue-500 to-cyan-500" },
@@ -99,42 +141,59 @@ const HomePage = () => {
             </div>
           ))}
         </div>
+
+        {/* Trending Section */}
         {trending.length > 0 && (
           <section className="mb-20">
             <div className="flex items-center justify-between mb-10">
               <h2 className={`text-5xl font-black ${darkMode ? 'bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent' : 'bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent'}`}>🔥 Trending Now</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {trending.map((product) => (<ProductCard key={product.id} product={product} darkMode={darkMode} />))}
+              {trending.map((product) => (<ProductCard key={product._id} product={product} darkMode={darkMode} />))}
             </div>
           </section>
         )}
+
+        {/* Featured Section */}
         {featured.length > 0 && (
           <section className="mb-20">
             <div className="flex items-center justify-between mb-10">
               <h2 className={`text-5xl font-black ${darkMode ? 'bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent' : 'bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'}`}>⭐ Featured Products</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {featured.map((product) => (<ProductCard key={product.id} product={product} featured darkMode={darkMode} />))}
+              {featured.map((product) => (<ProductCard key={product._id} product={product} featured darkMode={darkMode} />))}
             </div>
           </section>
         )}
+
+        {/* Best Sellers Section */}
         {bestSellers.length > 0 && (
           <section className="mb-20">
             <div className="flex items-center justify-between mb-10">
               <h2 className={`text-5xl font-black ${darkMode ? 'bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent' : 'bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent'}`}>🏆 Best Sellers</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {bestSellers.map((product) => (<ProductCard key={product.id} product={product} darkMode={darkMode} />))}
+              {bestSellers.map((product) => (<ProductCard key={product._id} product={product} darkMode={darkMode} />))}
             </div>
           </section>
         )}
+
+        {/* All Products Section */}
         <section>
           <h2 className={`text-4xl font-black mb-10 ${darkMode ? 'text-white' : 'text-gray-900'}`}>All Products ({filtered.length})</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {filtered.map((product) => (<ProductCard key={product.id} product={product} darkMode={darkMode} />))}
-          </div>
+          {filtered.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="text-6xl mb-4">📭</div>
+              <p className={`text-xl ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>No products found</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+              {filtered.map((product) => (<ProductCard key={product._id} product={product} darkMode={darkMode} />))}
+            </div>
+          )}
         </section>
+
+        {/* Newsletter */}
         <section className={`mt-20 rounded-3xl p-16 text-center shadow-2xl backdrop-blur-xl ${darkMode ? 'bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/30' : 'bg-gradient-to-r from-purple-600 to-blue-600'} text-white relative overflow-hidden`}>
           <div className="absolute inset-0 bg-white/5"></div>
           <div className="relative z-10">
@@ -147,12 +206,15 @@ const HomePage = () => {
           </div>
         </section>
       </div>
+
+      {/* AI Chatbot */}
       {!showAI && (
         <button onClick={() => setShowAI(true)} className="fixed bottom-6 right-6 z-40 p-4 rounded-full shadow-2xl bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:scale-110 transition-all">
           <span className="text-2xl">🤖</span>
         </button>
       )}
       {showAI && <AIProductChatbot products={products} onClose={() => setShowAI(false)} darkMode={darkMode} />}
+
       <style jsx>{`
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
         @keyframes bounce-slow { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-25px); } }
