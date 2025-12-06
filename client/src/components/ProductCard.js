@@ -1,15 +1,35 @@
+// 📁 client/src/components/ProductCard.js - FIXED WITH LOGIN CHECK
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 
 const ProductCard = ({ product, featured, darkMode }) => {
   const [isHovered, setIsHovered] = useState(false);
   const { addToCart } = useCart();
+  const { user } = useAuth();
+  const navigate = useNavigate();
 
   const handleAddToCart = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // ✅ Check if user is logged in
+    if (!user) {
+      toast.warning("⚠️ Please login to add items to cart", {
+        position: "top-center",
+        theme: darkMode ? "dark" : "light"
+      });
+      
+      // Redirect to login after short delay
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+      return;
+    }
+
+    // Add to cart if logged in
     addToCart({
       id: product.id,
       name: product.name,
@@ -17,6 +37,7 @@ const ProductCard = ({ product, featured, darkMode }) => {
       image: product.image,
       quantity: 1,
     });
+    
     toast.success("🛒 Item added to cart!", {
       position: "bottom-right",
       theme: darkMode ? "dark" : "light"
@@ -85,9 +106,10 @@ const ProductCard = ({ product, featured, darkMode }) => {
         <div className={`absolute bottom-0 left-0 right-0 p-4 transform translate-y-full group-hover:translate-y-0 transition-transform duration-500`}>
           <button
             onClick={handleAddToCart}
-            className="w-full bg-white text-black py-3 rounded-full font-black hover:bg-yellow-400 transition-all duration-300 shadow-xl"
+            disabled={product.stock === 0 || !user}
+            className="w-full bg-white text-black py-3 rounded-full font-black hover:bg-yellow-400 transition-all duration-300 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Quick Add to Cart
+            {!user ? '🔒 Login to Add' : product.stock === 0 ? 'Out of Stock' : 'Quick Add to Cart'}
           </button>
         </div>
       </div>
@@ -130,13 +152,14 @@ const ProductCard = ({ product, featured, darkMode }) => {
         
         <button
           onClick={handleAddToCart}
-          className={`w-full py-4 rounded-xl font-black text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ${
+          disabled={product.stock === 0 || !user}
+          className={`w-full py-4 rounded-xl font-black text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${
             darkMode
               ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500'
               : 'bg-gradient-to-r from-black to-gray-800 text-white hover:from-red-600 hover:to-pink-600'
           }`}
         >
-          Add to Cart
+          {!user ? '🔒 Login to Add' : product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
         </button>
       </div>
     </Link>

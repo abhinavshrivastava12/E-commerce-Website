@@ -1,3 +1,4 @@
+// 📁 client/src/App.js - FIXED WITH PROTECTED ROUTES
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
@@ -31,22 +32,50 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 const AppContent = () => {
   const { loading } = useAuth();
 
-  if (loading) return null; // or return a loading spinner
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-purple-100 to-pink-100">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-spin">⏳</div>
+          <p className="text-xl font-bold text-gray-700">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow">
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<HomePage />} />
           <Route path="/product/:id" element={<ProductPage />} />
-          <Route path="/cart" element={<Cart />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/checkout" element={<Checkout />} />
+          
+          {/* Seller Routes */}
           <Route path="/seller/login" element={<SellerLogin />} />
           <Route path="/seller/register" element={<SellerRegister />} />
           <Route path="/seller/dashboard" element={<SellerDashboard />} />
+
+          {/* Protected Routes - Require Login */}
+          <Route
+            path="/cart"
+            element={
+              <ProtectedRoute>
+                <Cart />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/checkout"
+            element={
+              <ProtectedRoute>
+                <Checkout />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/orders"
             element={
@@ -55,9 +84,6 @@ const AppContent = () => {
               </ProtectedRoute>
             }
           />
-          console.log("ProtectedRoute user:", user);
-          console.log("ProtectedRoute loading:", loading);
-
           <Route
             path="/invoice"
             element={

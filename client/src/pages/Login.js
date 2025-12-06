@@ -1,3 +1,4 @@
+// 📁 client/src/pages/Login.js - COMPLETE FIX
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
@@ -5,7 +6,7 @@ import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 
 const Login = () => {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(false);
   const [email, setEmail] = useState("");
@@ -15,7 +16,13 @@ const Login = () => {
 
   useEffect(() => {
     document.title = "Abhi ShoppingZone - Login";
-  }, []);
+    
+    // Redirect if already logged in
+    if (user) {
+      console.log("✅ User already logged in, redirecting to home");
+      navigate("/");
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -26,13 +33,36 @@ const Login = () => {
     }
 
     setLoading(true);
+    
     try {
-      const res = await axios.post("/api/auth/login", { email, password });
-      login(res.data.user);
-      toast.success("✅ Login Successful! Welcome back!");
-      navigate("/");
+      console.log("🔐 Attempting login for:", email);
+      
+      const res = await axios.post("http://localhost:5000/api/auth/login", { 
+        email: email.trim(), 
+        password 
+      });
+
+      console.log("✅ Login response:", res.data);
+
+      // Call login function from context
+      const success = login(res.data);
+      
+      if (success) {
+        toast.success("✅ Login Successful! Welcome back!");
+        
+        // Small delay to ensure state updates
+        setTimeout(() => {
+          navigate("/");
+        }, 500);
+      } else {
+        toast.error("❌ Login failed. Please try again.");
+      }
+      
     } catch (error) {
-      toast.error("❌ Login Failed! Check your credentials.");
+      console.error("❌ Login error:", error.response?.data || error);
+      
+      const errorMsg = error.response?.data?.error || error.response?.data?.message || "Login failed";
+      toast.error("❌ " + errorMsg);
     } finally {
       setLoading(false);
     }
@@ -102,6 +132,7 @@ const Login = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>
@@ -128,6 +159,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -137,16 +169,6 @@ const Login = () => {
                   {showPassword ? '👁️' : '👁️‍🗨️'}
                 </button>
               </div>
-            </div>
-
-            {/* Forgot Password */}
-            <div className="text-right">
-              <button
-                type="button"
-                className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition-colors"
-              >
-                Forgot Password?
-              </button>
             </div>
 
             {/* Login Button */}
@@ -216,6 +238,19 @@ const Login = () => {
                 Create Account
               </Link>
             </p>
+
+            {/* Seller Login Link */}
+            <div className={`pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <p className={`text-center text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Are you a seller?{" "}
+                <Link
+                  to="/seller/login"
+                  className="font-bold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                >
+                  Login as Seller
+                </Link>
+              </p>
+            </div>
           </form>
         </div>
       </div>
