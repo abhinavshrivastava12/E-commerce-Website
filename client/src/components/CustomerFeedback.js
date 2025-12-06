@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Star, ThumbsUp, ThumbsDown, Send } from 'lucide-react';
 
 const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) => {
@@ -6,6 +6,7 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
   const [showForm, setShowForm] = useState(false);
   const [filterRating, setFilterRating] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
+  const [userVotes, setUserVotes] = useState({});
   
   const [formData, setFormData] = useState({
     name: '',
@@ -13,26 +14,39 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
     rating: 5,
     title: '',
     comment: '',
-    images: [],
-    helpful: 0,
-    notHelpful: 0
+    images: []
   });
 
-  useEffect(() => {
-    loadFeedbacks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
-
-  const loadFeedbacks = () => {
+  // FIX: Wrapped in useCallback to prevent infinite loops and satisfy ESLint
+  const loadFeedbacks = useCallback(() => {
     const stored = localStorage.getItem(`feedbacks-${productId}`);
     if (stored) {
       setFeedbacks(JSON.parse(stored));
     }
-  };
+  }, [productId]);
+
+  // FIX: Wrapped in useCallback
+  const loadUserVotes = useCallback(() => {
+    const stored = localStorage.getItem(`user-votes-${productId}`);
+    if (stored) {
+      setUserVotes(JSON.parse(stored));
+    }
+  }, [productId]);
+
+  // FIX: Added dependencies to useEffect
+  useEffect(() => {
+    loadFeedbacks();
+    loadUserVotes();
+  }, [loadFeedbacks, loadUserVotes]);
 
   const saveFeedbacks = (updatedFeedbacks) => {
     localStorage.setItem(`feedbacks-${productId}`, JSON.stringify(updatedFeedbacks));
     setFeedbacks(updatedFeedbacks);
+  };
+
+  const saveUserVotes = (votes) => {
+    localStorage.setItem(`user-votes-${productId}`, JSON.stringify(votes));
+    setUserVotes(votes);
   };
 
   const handleImageUpload = (e) => {
@@ -44,13 +58,20 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
   const handleSubmit = (e) => {
     e.preventDefault();
     
+    if (!formData.name || !formData.email || !formData.comment) {
+      alert('Please fill all required fields');
+      return;
+    }
+
     const newFeedback = {
       ...formData,
       id: Date.now(),
       productId,
       productName,
       date: new Date().toISOString(),
-      verified: Math.random() > 0.5
+      verified: Math.random() > 0.5,
+      helpful: 0,
+      notHelpful: 0
     };
 
     const updated = [newFeedback, ...feedbacks];
@@ -62,15 +83,21 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
       rating: 5,
       title: '',
       comment: '',
-      images: [],
-      helpful: 0,
-      notHelpful: 0
+      images: []
     });
     
     setShowForm(false);
+    alert('Review submitted successfully!');
   };
 
   const markHelpful = (feedbackId, type) => {
+    const voteKey = `${feedbackId}-${type}`;
+    
+    if (userVotes[voteKey]) {
+      alert('You have already voted on this review!');
+      return;
+    }
+
     const updated = feedbacks.map(f => {
       if (f.id === feedbackId) {
         return {
@@ -81,7 +108,13 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
       }
       return f;
     });
+    
     saveFeedbacks(updated);
+    
+    const newVotes = { ...userVotes, [voteKey]: true };
+    saveUserVotes(newVotes);
+    
+    alert(`Thank you for your feedback!`);
   };
 
   const getFilteredFeedbacks = () => {
@@ -128,6 +161,10 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
     );
   };
 
+  const hasVoted = (feedbackId, type) => {
+    return userVotes[`${feedbackId}-${type}`] || false;
+  };
+
   return (
     <div className={`rounded-3xl p-8 shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
       <div className="mb-8">
@@ -135,7 +172,6 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
           ⭐ Customer Reviews
         </h2>
         
-        {/* Rating Summary */}
         <div className="grid md:grid-cols-2 gap-8 mb-8">
           <div className={`p-6 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <div className="text-center">
@@ -171,7 +207,6 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
           </div>
         </div>
 
-        {/* Filters and Write Review Button */}
         <div className="flex flex-wrap gap-4 items-center justify-between mb-6">
           <div className="flex flex-wrap gap-3">
             <select
@@ -217,7 +252,6 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
           </button>
         </div>
 
-        {/* Review Form */}
         {showForm && (
           <div className={`p-6 rounded-2xl mb-8 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <h3 className={`text-2xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -227,7 +261,7 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
             <div className="grid md:grid-cols-2 gap-4 mb-4">
               <input
                 type="text"
-                placeholder="Your Name"
+                placeholder="Your Name *"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className={`px-4 py-3 rounded-xl border-2 focus:outline-none transition-all ${
@@ -238,7 +272,7 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
               />
               <input
                 type="email"
-                placeholder="Your Email"
+                placeholder="Your Email *"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className={`px-4 py-3 rounded-xl border-2 focus:outline-none transition-all ${
@@ -251,12 +285,13 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
 
             <div className="mb-4">
               <label className={`block font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                Rating
+                Rating *
               </label>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map(rating => (
                   <button
                     key={rating}
+                    type="button"
                     onClick={() => setFormData({ ...formData, rating })}
                     className={`p-3 rounded-xl transition-all ${
                       formData.rating >= rating
@@ -274,7 +309,7 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
 
             <input
               type="text"
-              placeholder="Review Title"
+              placeholder="Review Title *"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
               className={`w-full px-4 py-3 rounded-xl border-2 focus:outline-none transition-all mb-4 ${
@@ -285,7 +320,7 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
             />
 
             <textarea
-              placeholder="Tell us about your experience..."
+              placeholder="Tell us about your experience... *"
               value={formData.comment}
               onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
               rows={5}
@@ -321,6 +356,7 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
             <div className="flex gap-3">
               <button
                 onClick={handleSubmit}
+                type="button"
                 className="flex-1 py-3 rounded-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-500 hover:to-emerald-500 transition-all"
               >
                 <Send size={18} className="inline mr-2" />
@@ -328,6 +364,7 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
               </button>
               <button
                 onClick={() => setShowForm(false)}
+                type="button"
                 className={`px-6 py-3 rounded-xl font-bold transition-all ${
                   darkMode ? 'bg-gray-800 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300'
                 }`}
@@ -339,7 +376,6 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
         )}
       </div>
 
-      {/* Reviews List */}
       <div className="space-y-6">
         {getFilteredFeedbacks().length === 0 ? (
           <p className={`text-center py-12 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -394,21 +430,31 @@ const CustomerFeedbackSystem = ({ productId, productName, darkMode = false }) =>
               <div className="flex items-center gap-4 pt-4 border-t border-gray-300">
                 <button
                   onClick={() => markHelpful(feedback.id, 'helpful')}
+                  disabled={hasVoted(feedback.id, 'helpful')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                    hasVoted(feedback.id, 'helpful')
+                      ? 'bg-green-200 text-green-700'
+                      : darkMode
+                        ? 'hover:bg-gray-600'
+                        : 'hover:bg-gray-200'
                   }`}
                 >
-                  <ThumbsUp size={16} />
-                  <span className="text-sm">Helpful ({feedback.helpful})</span>
+                  <ThumbsUp size={16} className={hasVoted(feedback.id, 'helpful') ? 'fill-current' : ''} />
+                  <span className="text-sm font-bold">Helpful ({feedback.helpful})</span>
                 </button>
                 <button
                   onClick={() => markHelpful(feedback.id, 'notHelpful')}
+                  disabled={hasVoted(feedback.id, 'notHelpful')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                    darkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                    hasVoted(feedback.id, 'notHelpful')
+                      ? 'bg-red-200 text-red-700'
+                      : darkMode
+                        ? 'hover:bg-gray-600'
+                        : 'hover:bg-gray-200'
                   }`}
                 >
-                  <ThumbsDown size={16} />
-                  <span className="text-sm">({feedback.notHelpful})</span>
+                  <ThumbsDown size={16} className={hasVoted(feedback.id, 'notHelpful') ? 'fill-current' : ''} />
+                  <span className="text-sm font-bold">({feedback.notHelpful})</span>
                 </button>
               </div>
             </div>

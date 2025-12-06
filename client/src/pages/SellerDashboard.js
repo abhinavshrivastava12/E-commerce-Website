@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Package, TrendingUp, Eye, DollarSign, ShoppingBag } from 'lucide-react';
+import { Upload, Package, TrendingUp, Eye, DollarSign, ShoppingBag, Edit2, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
 
 const SellerDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -12,6 +12,9 @@ const SellerDashboard = () => {
     activeProducts: 0,
     outOfStock: 0
   });
+  const [loading, setLoading] = useState(false);
+  const [seller, setSeller] = useState(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     price: '',
@@ -23,40 +26,198 @@ const SellerDashboard = () => {
     image: null
   });
 
+  const [editingProduct, setEditingProduct] = useState(null);
+
   const categories = ['Electronics', 'Clothing', 'Groceries', 'Home & Kitchen', 'Beauty', 'Sports'];
 
-  // Mock data for demo
   useEffect(() => {
-    setStats({
-      totalProducts: 12,
-      totalViews: 3420,
-      totalSales: 89,
-      totalRevenue: 45670,
-      activeProducts: 10,
-      outOfStock: 2
-    });
+    const storedSeller = localStorage.getItem('seller');
+    if (!storedSeller) {
+      window.location.href = '/seller/login';
+      return;
+    }
     
-    setProducts([
-      { id: 1, name: 'Wireless Headphones', price: 2999, stock: 25, sales: 15, image: '🎧' },
-      { id: 2, name: 'Smart Watch', price: 4999, stock: 12, sales: 8, image: '⌚' },
-      { id: 3, name: 'Bluetooth Speaker', price: 1999, stock: 0, sales: 22, image: '🔊' }
-    ]);
+    const parsed = JSON.parse(storedSeller);
+    setSeller(parsed);
+    loadDashboardData(parsed.token);
   }, []);
 
-  const handleImageChange = (e) => {
-    setFormData({ ...formData, image: e.target.files[0] });
+  const loadDashboardData = async (token) => {
+    try {
+      setLoading(true);
+      
+      const statsRes = await fetch('http://localhost:5000/api/seller/products/dashboard', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const statsData = await statsRes.json();
+      setStats(statsData);
+
+      const productsRes = await fetch('http://localhost:5000/api/seller/products/my-products', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const productsData = await productsRes.json();
+      setProducts(productsData);
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Load Error:', error);
+      alert('Failed to load dashboard data');
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = () => {
-    alert('Product added! (This is a demo - connect to backend)');
-    console.log('Form data:', formData);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB');
+        return;
+      }
+      setFormData({ ...formData, image: file });
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.price || !formData.stock) {
+      alert('Please fill all required fields');
+      return;
+    }
+
+    if (!formData.image && !editingProduct) {
+      alert('Please select an image');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const data = new FormData();
+      data.append('name', formData.name);
+      data.append('price', formData.price);
+      data.append('originalPrice', formData.originalPrice || formData.price);
+      data.append('category', formData.category);
+      data.append('description', formData.description);
+      data.append('stock', formData.stock);
+      data.append('discount', formData.discount || 0);
+      
+      if (formData.image) {
+        data.append('image', formData.image);
+      }
+
+      const url = editingProduct 
+        ? `http://localhost:5000/api/seller/products/update/${editingProduct._id}`
+        : 'http://localhost:5000/api/seller/products/add';
+      
+      const method = editingProduct ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 
+          Authorization: `Bearer ${seller.token}`
+        },
+        body: data
+      });
+
+      const result = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to save product');
+      }
+
+      alert(editingProduct ? 'Product updated!' : 'Product added!');
+      
+      setFormData({
+        name: '',
+        price: '',
+        originalPrice: '',
+        category: 'Electronics',
+        description: '',
+        stock: '',
+        discount: '',
+        image: null
+      });
+      setEditingProduct(null);
+      
+      loadDashboardData(seller.token);
+      setActiveTab('my-products');
+      
+    } catch (error) {
+      console.error('Submit Error:', error);
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (product) => {
+    setFormData({
+      name: product.name,
+      price: product.price,
+      originalPrice: product.originalPrice,
+      category: product.category,
+      description: product.description,
+      stock: product.stock,
+      discount: product.discount || 0,
+      image: null
+    });
+    setEditingProduct(product);
+    setActiveTab('add-product');
+  };
+
+  const handleDelete = async (productId) => {
+    if (!window.confirm('Are you sure you want to delete this product?')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/seller/products/delete/${productId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${seller.token}` }
+      });
+
+      if (!res.ok) throw new Error('Failed to delete');
+
+      alert('Product deleted!');
+      loadDashboardData(seller.token);
+    } catch (error) {
+      console.error('Delete Error:', error);
+      alert('Failed to delete product');
+    }
+  };
+
+  const handleToggleStatus = async (productId) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/seller/products/toggle-status/${productId}`, {
+        method: 'PUT',
+        headers: { 
+          Authorization: `Bearer ${seller.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!res.ok) throw new Error('Failed to toggle');
+
+      alert('Status updated!');
+      loadDashboardData(seller.token);
+    } catch (error) {
+      console.error('Toggle Error:', error);
+      alert('Failed to update status');
+    }
+  };
+
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      localStorage.removeItem('seller');
+      window.location.href = '/seller/login';
+    }
   };
 
   const renderDashboard = () => (
     <div className="space-y-6">
       <h2 className="text-3xl font-black text-gray-900">📊 Dashboard Overview</h2>
       
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-6 rounded-2xl shadow-xl text-white">
           <div className="flex items-center justify-between mb-4">
@@ -107,22 +268,21 @@ const SellerDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Products */}
       <div className="bg-white rounded-2xl shadow-xl p-6">
         <h3 className="text-2xl font-black mb-4">Recent Products</h3>
         <div className="space-y-3">
-          {products.map(product => (
-            <div key={product.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+          {products.slice(0, 5).map(product => (
+            <div key={product._id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
               <div className="flex items-center gap-4">
-                <span className="text-4xl">{product.image}</span>
+                <img src={product.image} alt={product.name} className="w-16 h-16 object-cover rounded-lg" />
                 <div>
                   <p className="font-bold text-gray-900">{product.name}</p>
                   <p className="text-sm text-gray-600">₹{product.price} • Stock: {product.stock}</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-bold text-green-600">{product.sales} sold</p>
-                <p className="text-xs text-gray-500">₹{product.price * product.sales} revenue</p>
+                <p className="font-bold text-green-600">{product.sales || 0} sold</p>
+                <p className="text-xs text-gray-500">₹{product.price * (product.sales || 0)} revenue</p>
               </div>
             </div>
           ))}
@@ -133,12 +293,14 @@ const SellerDashboard = () => {
 
   const renderAddProduct = () => (
     <div className="bg-white rounded-2xl shadow-xl p-8">
-      <h2 className="text-3xl font-black text-gray-900 mb-6">➕ Add New Product</h2>
+      <h2 className="text-3xl font-black text-gray-900 mb-6">
+        {editingProduct ? '✏️ Edit Product' : '➕ Add New Product'}
+      </h2>
       
       <div className="space-y-6">
         <div className="grid md:grid-cols-2 gap-6">
           <div>
-            <label className="block text-sm font-bold mb-2 text-gray-700">Product Name</label>
+            <label className="block text-sm font-bold mb-2 text-gray-700">Product Name *</label>
             <input
               type="text"
               placeholder="Enter product name"
@@ -149,7 +311,7 @@ const SellerDashboard = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-bold mb-2 text-gray-700">Category</label>
+            <label className="block text-sm font-bold mb-2 text-gray-700">Category *</label>
             <select
               className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-purple-600 focus:outline-none"
               value={formData.category}
@@ -162,13 +324,14 @@ const SellerDashboard = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-bold mb-2 text-gray-700">Price (₹)</label>
+            <label className="block text-sm font-bold mb-2 text-gray-700">Price (₹) *</label>
             <input
               type="number"
               placeholder="2999"
               className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-purple-600 focus:outline-none"
               value={formData.price}
               onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              min="0"
             />
           </div>
 
@@ -180,17 +343,19 @@ const SellerDashboard = () => {
               className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-purple-600 focus:outline-none"
               value={formData.originalPrice}
               onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
+              min="0"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-bold mb-2 text-gray-700">Stock Quantity</label>
+            <label className="block text-sm font-bold mb-2 text-gray-700">Stock Quantity *</label>
             <input
               type="number"
               placeholder="50"
               className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-purple-600 focus:outline-none"
               value={formData.stock}
               onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
+              min="0"
             />
           </div>
 
@@ -202,6 +367,8 @@ const SellerDashboard = () => {
               className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-purple-600 focus:outline-none"
               value={formData.discount}
               onChange={(e) => setFormData({ ...formData, discount: e.target.value })}
+              min="0"
+              max="100"
             />
           </div>
         </div>
@@ -218,7 +385,9 @@ const SellerDashboard = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-bold mb-2 text-gray-700">Product Image</label>
+          <label className="block text-sm font-bold mb-2 text-gray-700">
+            Product Image {!editingProduct && '*'}
+          </label>
           <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-purple-600 transition-colors cursor-pointer">
             <input
               type="file"
@@ -230,60 +399,128 @@ const SellerDashboard = () => {
             <label htmlFor="image-upload" className="cursor-pointer">
               <Upload size={48} className="mx-auto mb-4 text-gray-400" />
               <p className="text-gray-600 font-semibold mb-2">
-                {formData.image ? formData.image.name : 'Click to upload product image'}
+                {formData.image ? formData.image.name : editingProduct ? 'Change image (optional)' : 'Click to upload product image'}
               </p>
               <p className="text-sm text-gray-500">PNG, JPG, WEBP (Max 5MB)</p>
             </label>
           </div>
         </div>
 
-        <button
-          onClick={handleSubmit}
-          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-xl font-black text-lg hover:from-purple-500 hover:to-pink-500 transition-all duration-300 transform hover:scale-105 shadow-xl"
-        >
-          ➕ Add Product
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-xl font-black text-lg hover:from-purple-500 hover:to-pink-500 transition-all duration-300 transform hover:scale-105 shadow-xl disabled:opacity-50"
+          >
+            {loading ? '⏳ Processing...' : editingProduct ? '✏️ Update Product' : '➕ Add Product'}
+          </button>
+          {editingProduct && (
+            <button
+              onClick={() => {
+                setEditingProduct(null);
+                setFormData({
+                  name: '',
+                  price: '',
+                  originalPrice: '',
+                  category: 'Electronics',
+                  description: '',
+                  stock: '',
+                  discount: '',
+                  image: null
+                });
+              }}
+              className="px-8 py-4 rounded-xl font-bold bg-gray-200 hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 
   const renderMyProducts = () => (
     <div className="bg-white rounded-2xl shadow-xl p-8">
-      <h2 className="text-3xl font-black text-gray-900 mb-6">📦 My Products</h2>
+      <h2 className="text-3xl font-black text-gray-900 mb-6">📦 My Products ({products.length})</h2>
       
-      <div className="space-y-4">
-        {products.map(product => (
-          <div key={product.id} className="flex items-center justify-between p-6 bg-gray-50 rounded-xl hover:shadow-lg transition-shadow">
-            <div className="flex items-center gap-6">
-              <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center text-4xl shadow-md">
-                {product.image}
-              </div>
-              <div>
-                <h3 className="font-black text-xl text-gray-900 mb-1">{product.name}</h3>
-                <div className="flex gap-4 text-sm text-gray-600">
-                  <span className="font-bold">₹{product.price}</span>
-                  <span>Stock: {product.stock}</span>
-                  <span className="text-green-600 font-bold">{product.sales} sold</span>
+      {products.length === 0 ? (
+        <div className="text-center py-20">
+          <Package size={64} className="mx-auto mb-4 text-gray-400" />
+          <p className="text-xl text-gray-600 mb-6">No products yet. Add your first product!</p>
+          <button
+            onClick={() => setActiveTab('add-product')}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-3 rounded-xl font-bold hover:from-purple-500 hover:to-pink-500 transition-all"
+          >
+            ➕ Add Product
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {products.map(product => (
+            <div key={product._id} className="flex items-center justify-between p-6 bg-gray-50 rounded-xl hover:shadow-lg transition-shadow">
+              <div className="flex items-center gap-6">
+                <img src={product.image} alt={product.name} className="w-24 h-24 object-cover rounded-lg shadow-md" />
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="font-black text-xl text-gray-900">{product.name}</h3>
+                    {product.isActive ? (
+                      <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-bold">Active</span>
+                    ) : (
+                      <span className="bg-gray-500 text-white text-xs px-3 py-1 rounded-full font-bold">Inactive</span>
+                    )}
+                  </div>
+                  <div className="flex gap-4 text-sm text-gray-600">
+                    <span className="font-bold text-green-600">₹{product.price}</span>
+                    <span>Stock: {product.stock}</span>
+                    <span>Category: {product.category}</span>
+                    <span className="text-blue-600">{product.views || 0} views</span>
+                    <span className="text-purple-600 font-bold">{product.sales || 0} sold</span>
+                  </div>
                 </div>
               </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleToggleStatus(product._id)}
+                  className="p-3 bg-blue-100 text-blue-600 rounded-lg font-bold hover:bg-blue-200 transition-colors"
+                  title={product.isActive ? 'Deactivate' : 'Activate'}
+                >
+                  {product.isActive ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+                </button>
+                <button
+                  onClick={() => handleEdit(product)}
+                  className="p-3 bg-green-100 text-green-600 rounded-lg font-bold hover:bg-green-200 transition-colors"
+                  title="Edit"
+                >
+                  <Edit2 size={20} />
+                </button>
+                <button
+                  onClick={() => handleDelete(product._id)}
+                  className="p-3 bg-red-100 text-red-600 rounded-lg font-bold hover:bg-red-200 transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-500 transition-colors">
-                ✏️ Edit
-              </button>
-              <button className="px-6 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-500 transition-colors">
-                🗑️ Delete
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
+  if (!seller) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-spin">⏳</div>
+          <p className="text-xl font-bold text-gray-700">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
       <div className="bg-white shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -291,8 +528,15 @@ const SellerDashboard = () => {
               🏪 Seller Dashboard
             </h1>
             <div className="flex items-center gap-4">
-              <span className="text-gray-600">Welcome, <strong>Shop Owner</strong></span>
-              <button className="px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-500 transition-colors">
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Welcome,</p>
+                <p className="font-bold text-gray-900">{seller.name}</p>
+                <p className="text-xs text-gray-500">{seller.shopName}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="px-6 py-2 bg-red-600 text-white rounded-full font-bold hover:bg-red-500 transition-colors"
+              >
                 Logout
               </button>
             </div>
@@ -301,11 +545,10 @@ const SellerDashboard = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Navigation Tabs */}
         <div className="flex gap-4 mb-8">
           {[
             { id: 'dashboard', label: '📊 Dashboard' },
-            { id: 'add-product', label: '➕ Add Product' },
+            { id: 'add-product', label: editingProduct ? '✏️ Edit Product' : '➕ Add Product' },
             { id: 'my-products', label: '📦 My Products' }
           ].map(tab => (
             <button
@@ -322,7 +565,6 @@ const SellerDashboard = () => {
           ))}
         </div>
 
-        {/* Content */}
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'add-product' && renderAddProduct()}
         {activeTab === 'my-products' && renderMyProducts()}

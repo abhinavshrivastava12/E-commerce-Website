@@ -1,4 +1,4 @@
-// 📁 server/controllers/reviewController.js
+// 📁 server/controllers/reviewController.js - COMPLETE FIX
 const Review = require("../models/Review");
 
 // ✅ Create a new review
@@ -6,6 +6,8 @@ exports.createReview = async (req, res) => {
   try {
     const { productId, productName, rating, title, comment, images } = req.body;
     const userId = req.user.id;
+
+    console.log("📝 Creating review:", { productId, userId });
 
     const review = new Review({
       productId,
@@ -18,13 +20,21 @@ exports.createReview = async (req, res) => {
       comment,
       images: images || [],
       verified: true,
+      helpful: 0,
+      notHelpful: 0
     });
 
     await review.save();
-    res.status(201).json({ message: "Review created successfully", review });
+    console.log("✅ Review created:", review._id);
+
+    res.status(201).json({ 
+      success: true,
+      message: "Review created successfully", 
+      review 
+    });
   } catch (error) {
     console.error("❌ Create Review Error:", error);
-    res.status(500).json({ error: "Failed to create review" });
+    res.status(500).json({ error: "Failed to create review: " + error.message });
   }
 };
 
@@ -32,27 +42,57 @@ exports.createReview = async (req, res) => {
 exports.getReviewsByProduct = async (req, res) => {
   try {
     const { productId } = req.params;
-    const reviews = await Review.find({ productId }).sort({ createdAt: -1 });
+    console.log("📋 Fetching reviews for product:", productId);
+
+    const reviews = await Review.find({ productId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log(`✅ Found ${reviews.length} reviews`);
+
     res.json(reviews);
   } catch (error) {
     console.error("❌ Get Reviews Error:", error);
-    res.status(500).json({ error: "Failed to fetch reviews" });
+    res.status(500).json({ error: "Failed to fetch reviews: " + error.message });
   }
 };
 
-// ✅ Mark review as helpful
+// ✅ Mark review as helpful/not helpful - FIXED
 exports.markHelpful = async (req, res) => {
   try {
     const { id } = req.params;
     const { type } = req.body; // "helpful" or "notHelpful"
 
-    const update = type === "helpful" ? { $inc: { helpful: 1 } } : { $inc: { notHelpful: 1 } };
-    const review = await Review.findByIdAndUpdate(id, update, { new: true });
+    console.log(`👍 Marking review ${id} as ${type}`);
 
-    res.json({ message: "Updated successfully", review });
+    if (!type || !["helpful", "notHelpful"].includes(type)) {
+      return res.status(400).json({ error: "Invalid type. Use 'helpful' or 'notHelpful'" });
+    }
+
+    const update = type === "helpful" 
+      ? { $inc: { helpful: 1 } } 
+      : { $inc: { notHelpful: 1 } };
+
+    const review = await Review.findByIdAndUpdate(
+      id, 
+      update, 
+      { new: true }
+    );
+
+    if (!review) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    console.log(`✅ Review updated: helpful=${review.helpful}, notHelpful=${review.notHelpful}`);
+
+    res.json({ 
+      success: true,
+      message: "Review updated successfully", 
+      review 
+    });
   } catch (error) {
     console.error("❌ Mark Helpful Error:", error);
-    res.status(500).json({ error: "Failed to update review" });
+    res.status(500).json({ error: "Failed to update review: " + error.message });
   }
 };
 
@@ -60,10 +100,25 @@ exports.markHelpful = async (req, res) => {
 exports.deleteReview = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
+
+    console.log("🗑️ Deleting review:", id);
+
+    const review = await Review.findOne({ _id: id, userId });
+
+    if (!review) {
+      return res.status(404).json({ error: "Review not found or unauthorized" });
+    }
+
     await Review.findByIdAndDelete(id);
-    res.json({ message: "Review deleted successfully" });
+    console.log("✅ Review deleted");
+
+    res.json({ 
+      success: true,
+      message: "Review deleted successfully" 
+    });
   } catch (error) {
     console.error("❌ Delete Review Error:", error);
-    res.status(500).json({ error: "Failed to delete review" });
+    res.status(500).json({ error: "Failed to delete review: " + error.message });
   }
 };

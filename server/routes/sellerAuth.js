@@ -1,4 +1,4 @@
-// 📁 server/routes/sellerAuth.js - COMPLETE FIX
+// 📁 server/routes/sellerAuth.js - COMPLETE FIX WITH AUTO VERIFICATION
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -6,10 +6,12 @@ const Seller = require("../models/Seller");
 const sendEmail = require("../utils/sendEmail");
 const router = express.Router();
 
-// ✅ Register Seller
+// ✅ Register Seller - AUTO VERIFY
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password, shopName, phone, gstNumber } = req.body;
+
+    console.log("📝 Seller Registration:", { name, email, shopName });
 
     // Validation
     if (!name || !email || !password || !shopName || !phone) {
@@ -25,7 +27,7 @@ router.post("/register", async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create seller
+    // Create seller with AUTO VERIFICATION
     const seller = await Seller.create({
       name,
       email,
@@ -33,9 +35,11 @@ router.post("/register", async (req, res) => {
       shopName,
       phone,
       gstNumber: gstNumber || "",
-      isVerified: true, // Auto-verify for demo
+      isVerified: true,  // ✅ AUTO VERIFY
       isActive: true
     });
+
+    console.log("✅ Seller created and verified:", seller.email);
 
     // Send welcome email
     try {
@@ -43,7 +47,7 @@ router.post("/register", async (req, res) => {
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #9333ea;">Welcome to Abhi ShoppingZone Seller Panel! 🏪</h2>
           <p>Hi ${name},</p>
-          <p>Your seller account has been created successfully!</p>
+          <p>Your seller account has been created and <strong>verified</strong> successfully!</p>
           <p><strong>Shop Name:</strong> ${shopName}</p>
           <p>You can now login and start adding products.</p>
           <br/>
@@ -52,16 +56,18 @@ router.post("/register", async (req, res) => {
       `;
       await sendEmail(email, "Seller Account Created - Abhi ShoppingZone", html);
     } catch (emailErr) {
-      console.error("Email sending failed:", emailErr);
+      console.error("⚠️ Email sending failed:", emailErr);
     }
 
     res.status(201).json({
+      success: true,
       message: "Seller registered successfully! You can now login.",
       seller: {
         id: seller._id,
         name: seller.name,
         email: seller.email,
-        shopName: seller.shopName
+        shopName: seller.shopName,
+        isVerified: seller.isVerified
       }
     });
   } catch (error) {
@@ -70,7 +76,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// ✅ Login Seller - FIXED
+// ✅ Login Seller
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -90,6 +96,7 @@ router.post("/login", async (req, res) => {
     }
 
     console.log("✅ Seller found:", seller.email);
+    console.log("✅ Verified status:", seller.isVerified);
 
     // Check if active
     if (!seller.isActive) {
@@ -116,6 +123,7 @@ router.post("/login", async (req, res) => {
 
     // Return response
     res.json({
+      success: true,
       token,
       seller: {
         id: seller._id,
@@ -124,6 +132,7 @@ router.post("/login", async (req, res) => {
         shopName: seller.shopName,
         phone: seller.phone,
         isVerified: seller.isVerified,
+        isActive: seller.isActive,
         role: 'seller'
       }
     });
@@ -157,6 +166,30 @@ router.get("/profile", async (req, res) => {
   } catch (error) {
     console.error("❌ Profile Error:", error);
     res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
+// ✅ ADMIN: Verify Seller (for future use)
+router.put("/admin/verify/:sellerId", async (req, res) => {
+  try {
+    const seller = await Seller.findByIdAndUpdate(
+      req.params.sellerId,
+      { isVerified: true },
+      { new: true }
+    );
+
+    if (!seller) {
+      return res.status(404).json({ error: "Seller not found" });
+    }
+
+    res.json({ 
+      success: true,
+      message: "Seller verified successfully",
+      seller 
+    });
+  } catch (error) {
+    console.error("❌ Verify Error:", error);
+    res.status(500).json({ error: "Failed to verify seller" });
   }
 });
 
