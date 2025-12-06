@@ -1,9 +1,10 @@
-// 📁 client/src/pages/HomePage.js - FIXED TO SHOW SELLER PRODUCTS
+// 📁 client/src/pages/HomePage.js - FIXED TO SHOW ALL PRODUCTS
 import React, { useState, useEffect } from "react";
 import ProductCard from "../components/ProductCard";
 import { Link } from "react-router-dom";
 import AIProductChatbot from "../components/AIProductChatbot";
 import axios from "axios";
+import staticProducts from "../data/products"; // Import static products
 
 const categories = ["All", "Electronics", "Clothing", "Groceries", "Home & Kitchen", "Beauty", "Sports"];
 
@@ -23,18 +24,32 @@ const HomePage = () => {
     { title: "Grocery Bonanza", subtitle: "Essential Items at Unbeatable Prices", bg: "from-green-600 via-emerald-600 to-teal-600", emoji: "🛒", particles: "💫" }
   ];
 
-  // ✅ Fetch products from backend (including seller products)
+  // ✅ Fetch BOTH static AND seller products
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
+        
+        // Fetch seller products from backend
         const response = await axios.get("http://localhost:5000/api/products/all");
-        console.log("✅ Products loaded:", response.data);
-        setProducts(response.data);
+        const sellerProducts = response.data;
+        
+        console.log("✅ Seller products loaded:", sellerProducts.length);
+        console.log("✅ Static products:", staticProducts.length);
+        
+        // ✅ COMBINE both static and seller products
+        const allProducts = [
+          ...staticProducts, // Static products from data/products.js
+          ...sellerProducts  // Seller products from backend
+        ];
+        
+        console.log("✅ Total products:", allProducts.length);
+        setProducts(allProducts);
       } catch (error) {
         console.error("❌ Error fetching products:", error);
-        // Fallback to empty array if API fails
-        setProducts([]);
+        // ✅ FALLBACK: If backend fails, show static products only
+        console.log("⚠️ Using static products only");
+        setProducts(staticProducts);
       } finally {
         setLoading(false);
       }
@@ -54,7 +69,9 @@ const HomePage = () => {
   const filtered = products.filter((p) => {
     const matchesCategory = selectedCategory === "All" || p.category === selectedCategory;
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch && p.isActive; // Only show active products
+    // Check both isActive (for seller products) and assume static products are active
+    const isActive = p.isActive !== undefined ? p.isActive : true;
+    return matchesCategory && matchesSearch && isActive;
   });
 
   const featured = filtered.filter(p => p.featured).slice(0, 4);
@@ -149,7 +166,7 @@ const HomePage = () => {
               <h2 className={`text-5xl font-black ${darkMode ? 'bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent' : 'bg-gradient-to-r from-red-600 to-pink-600 bg-clip-text text-transparent'}`}>🔥 Trending Now</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {trending.map((product) => (<ProductCard key={product._id} product={product} darkMode={darkMode} />))}
+              {trending.map((product) => (<ProductCard key={product._id || product.id} product={product} darkMode={darkMode} />))}
             </div>
           </section>
         )}
@@ -161,7 +178,7 @@ const HomePage = () => {
               <h2 className={`text-5xl font-black ${darkMode ? 'bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent' : 'bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'}`}>⭐ Featured Products</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {featured.map((product) => (<ProductCard key={product._id} product={product} featured darkMode={darkMode} />))}
+              {featured.map((product) => (<ProductCard key={product._id || product.id} product={product} featured darkMode={darkMode} />))}
             </div>
           </section>
         )}
@@ -173,7 +190,7 @@ const HomePage = () => {
               <h2 className={`text-5xl font-black ${darkMode ? 'bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent' : 'bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent'}`}>🏆 Best Sellers</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {bestSellers.map((product) => (<ProductCard key={product._id} product={product} darkMode={darkMode} />))}
+              {bestSellers.map((product) => (<ProductCard key={product._id || product.id} product={product} darkMode={darkMode} />))}
             </div>
           </section>
         )}
@@ -188,7 +205,7 @@ const HomePage = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {filtered.map((product) => (<ProductCard key={product._id} product={product} darkMode={darkMode} />))}
+              {filtered.map((product) => (<ProductCard key={product._id || product.id} product={product} darkMode={darkMode} />))}
             </div>
           )}
         </section>
