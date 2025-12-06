@@ -29,11 +29,14 @@ const CustomerChatSystem = ({ productId, productName, currentUser, darkMode = fa
       const transformedBuyers = res.data.map(user => ({
         id: user._id,
         name: user.name,
-        email: user.email,
         avatar: user.name.charAt(0).toUpperCase(),
-        online: false, // Can be enhanced with socket.io
+        online: false,
         verified: true,
-        purchaseDate: new Date().toISOString(),
+        purchaseDate: new Date().toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric'
+        }),
         lastMessage: 'Start a conversation',
         lastMessageTime: 'Just now'
       }));
@@ -166,42 +169,42 @@ const CustomerChatSystem = ({ productId, productName, currentUser, darkMode = fa
         ) : (
           filteredBuyers.map(buyer => (
             <button
-              key={buyer.id}
-              onClick={() => {
-                setSelectedBuyer(buyer);
-                setView('chat');
-              }}
-              className={`w-full p-4 rounded-xl mb-2 transition-all ${
-                darkMode ? 'hover:bg-gray-700 bg-gray-800' : 'hover:bg-gray-100 bg-white shadow-sm'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center text-white text-xl font-bold">
-                    {buyer.avatar}
-                  </div>
-                  {buyer.online && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+            key={buyer.id}
+            onClick={() => {
+              setSelectedBuyer(buyer);
+              setView('chat');
+            }}
+            className={`w-full p-4 rounded-xl mb-2 transition-all ${
+              darkMode ? 'hover:bg-gray-700 bg-gray-800' : 'hover:bg-gray-100 bg-white shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center text-white text-xl font-bold">
+                  {buyer.avatar}
+                </div>
+                {buyer.online && (
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {buyer.name}
+                  </span>
+                  {buyer.verified && (
+                    <span className="text-blue-500 text-xs">✓</span>
                   )}
                 </div>
-
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {buyer.name}
-                    </span>
-                    {buyer.verified && (
-                      <span className="text-blue-500 text-xs">✓</span>
-                    )}
-                  </div>
-                  <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    {buyer.email}
-                  </p>
-                </div>
-
-                <div className="text-xs text-gray-500">{buyer.lastMessageTime}</div>
+                <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                  Purchased: {buyer.purchaseDate}
+                </p>
               </div>
-            </button>
+
+              <div className="text-xs text-gray-500">{buyer.lastMessageTime}</div>
+            </div>
+          </button>
           ))
         )}
       </div>

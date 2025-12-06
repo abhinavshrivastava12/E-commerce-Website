@@ -1,4 +1,4 @@
-// 📁 client/src/pages/Checkout.js - FIXED WITH ORDER UPDATE & COUPON
+// 📁 client/src/pages/Checkout.js - COMPLETE WITH ALL PAYMENT OPTIONS
 import React, { useState } from "react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -15,12 +15,18 @@ const Checkout = () => {
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [selectedPayment, setSelectedPayment] = useState("");
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shipping = subtotal > 500 ? 0 : 50;
   const total = subtotal + shipping - discount;
 
-  // ✅ Apply Coupon
+  const paymentMethods = [
+    { id: 'razorpay', name: '💳 Razorpay', description: 'Card/UPI/NetBanking' },
+    { id: 'cod', name: '🚚 Cash on Delivery', description: 'Pay when delivered' },
+    { id: 'whatsapp', name: '💬 WhatsApp Payment', description: 'Pay via WhatsApp' }
+  ];
+
   const applyCoupon = async () => {
     if (!couponCode.trim()) {
       toast.warning("⚠️ Please enter a coupon code");
@@ -37,25 +43,61 @@ const Checkout = () => {
       setAppliedCoupon(response.data.couponId);
       toast.success("✅ Coupon applied successfully!");
     } catch (error) {
-      console.error("❌ Coupon error:", error);
       toast.error(error.response?.data?.error || "Invalid coupon code");
       setDiscount(0);
       setAppliedCoupon(null);
     }
   };
 
-  // ✅ Remove Coupon
-  const removeCoupon = () => {
-    setDiscount(0);
-    setAppliedCoupon(null);
-    setCouponCode("");
-    toast.info("Coupon removed");
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
   };
 
-  // ✅ Place Order via WhatsApp
-  const handleWhatsAppOrder = async () => {
-    if (cart.length === 0) {
-      toast.error("Your cart is empty!");
+  const handleRazorpayPayment = async (orderId) => {
+    const res = await loadRazorpay();
+
+    if (!res) {
+      toast.error('Razorpay SDK failed to load');
+      return false;
+    }
+
+    const options = {
+      key: "rzp_test_xxxxxxxxxx", // 👈 REPLACE WITH YOUR RAZORPAY KEY
+      amount: total * 100,
+      currency: "INR",
+      name: "Abhi ShoppingZone",
+      description: `Order #${orderId}`,
+      handler: async function (response) {
+        console.log("✅ Payment Success:", response);
+        return true;
+      },
+      prefill: {
+        name: user.name,
+        email: user.email
+      },
+      theme: {
+        color: "#9333ea"
+      }
+    };
+
+    const razorpay = new window.Razorpay(options);
+    
+    return new Promise((resolve) => {
+      razorpay.on('payment.success', () => resolve(true));
+      razorpay.on('payment.error', () => resolve(false));
+      razorpay.open();
+    });
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!selectedPayment) {
+      toast.warning("⚠️ Please select a payment method");
       return;
     }
 
@@ -76,7 +118,8 @@ const Checkout = () => {
           quantity: item.quantity
         })),
         total: total,
-        paymentMethod: "WhatsApp"
+        paymentMethod: selectedPayment === 'cod' ? 'COD' : 
+                       selectedPayment === 'razorpay' ? 'Razorpay' : 'WhatsApp'
       };
 
       const response = await axios.post(
@@ -89,7 +132,7 @@ const Checkout = () => {
         }
       );
 
-      console.log("✅ Order created:", response.data);
+      const orderId = response.data.orderId;
 
       // 2. Mark coupon as used if applied
       if (appliedCoupon) {
@@ -98,39 +141,56 @@ const Checkout = () => {
         });
       }
 
-      // 3. Create WhatsApp message
-      const message = `Hello, I want to place an order from Abhi ShoppingZone.
+      // 3. Handle payment method
+      if (selectedPayment === 'cod') {
+        // COD - Direct confirmation
+        toast.success("✅ Order placed successfully! Pay on delivery.");
+        clearCart();
+        setTimeout(() => navigate("/orders"), 1500);
+      } 
+      else if (selectedPayment === 'razorpay') {
+        // Razorpay - Show payment gateway
+        const paymentSuccess = await handleRazorpayPayment(orderId);
+        
+        if (paymentSuccess) {
+          toast.success("✅ Payment successful! Order confirmed.");
+          clearCart();
+          setTimeout(() => navigate("/orders"), 1500);
+        } else {
+          toast.error("❌ Payment failed. Please try again.");
+        }
+      }
+      else if (selectedPayment === 'whatsapp') {
+        // WhatsApp - Redirect to WhatsApp
+        const message = `Hello! I want to complete payment for my order.
 
-Order ID: ${response.data.orderId}
+Order ID: ${orderId}
 Customer: ${user.name}
 Email: ${user.email}
 
 📦 Items:
 ${cart.map(item => `• ${item.name} (x${item.quantity}) - ₹${item.price * item.quantity}`).join('\n')}
 
-💰 Payment Summary:
-Subtotal: ₹${subtotal}
-Shipping: ${shipping === 0 ? 'FREE' : '₹' + shipping}
-${discount > 0 ? `Discount: -₹${discount}` : ''}
-━━━━━━━━━━━━━━
-Total: ₹${total}
+💰 Total: ₹${total}
 
-Please confirm my order. Thank you!`;
+Please send payment details.`;
 
-      const encodedMessage = encodeURIComponent(message);
-      const phoneNumber = "919696400628";
-
-      // 4. Clear cart
-      clearCart();
-
-      // 5. Show success message
-      toast.success("✅ Order placed! Redirecting to WhatsApp...");
-
-      // 6. Open WhatsApp after short delay
-      setTimeout(() => {
+        const phoneNumber = "919696400628";
+        const encodedMessage = encodeURIComponent(message);
+        
+        // Open WhatsApp
         window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
-        navigate("/orders");
-      }, 1500);
+        
+        // Show message about checking WhatsApp
+        toast.info("📱 Please complete payment on WhatsApp");
+        
+        // Clear cart after WhatsApp redirect
+        setTimeout(() => {
+          clearCart();
+          toast.success("✅ Order placed! Complete payment on WhatsApp.");
+          navigate("/orders");
+        }, 2000);
+      }
 
     } catch (error) {
       console.error("❌ Order error:", error);
@@ -165,7 +225,6 @@ Please confirm my order. Thank you!`;
     <div className={`min-h-screen transition-colors duration-300 ${
       darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-50 to-gray-100'
     }`}>
-      {/* Dark Mode Toggle */}
       <button
         onClick={() => setDarkMode(!darkMode)}
         className={`fixed top-24 right-6 z-50 p-4 rounded-full shadow-2xl transition-all duration-300 transform hover:scale-110 ${
@@ -175,79 +234,109 @@ Please confirm my order. Thank you!`;
         {darkMode ? '☀️' : '🌙'}
       </button>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-6xl mx-auto px-6 py-12">
         <h1 className={`text-4xl font-black mb-8 ${
           darkMode 
             ? 'bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent'
             : 'bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent'
         }`}>
-          🧾 Checkout Summary
+          🧾 Checkout
         </h1>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Order Items */}
-          <div className="lg:col-span-2 space-y-4">
-            {cart.map((item) => (
-              <div
-                key={item.id}
-                className={`rounded-2xl p-6 shadow-xl ${
-                  darkMode ? 'bg-gray-800' : 'bg-white'
-                }`}
-              >
-                <div className="flex gap-4">
-                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-200">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className={`font-bold text-lg mb-2 ${
-                      darkMode ? 'text-white' : 'text-gray-900'
-                    }`}>{item.name}</h3>
-                    <div className="flex justify-between items-center">
+          {/* Left Column - Items & Payment Methods */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Order Items */}
+            <div className={`rounded-2xl p-6 shadow-xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                📦 Order Items
+              </h2>
+              <div className="space-y-3">
+                {cart.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`flex gap-4 p-4 rounded-xl ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}
+                  >
+                    <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center text-2xl">
+                      🛍️
+                    </div>
+                    <div className="flex-1">
+                      <h3 className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {item.name}
+                      </h3>
                       <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Quantity: <span className="font-bold">{item.quantity}</span>
+                        Quantity: {item.quantity}
                       </p>
-                      <p className={`text-xl font-black ${
-                        darkMode ? 'text-purple-400' : 'text-green-600'
-                      }`}>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-xl font-bold ${darkMode ? 'text-purple-400' : 'text-green-600'}`}>
                         ₹{item.price * item.quantity}
+                      </p>
+                      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        ₹{item.price} each
                       </p>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Payment Methods */}
+            <div className={`rounded-2xl p-6 shadow-xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h2 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                💳 Select Payment Method
+              </h2>
+              <div className="space-y-3">
+                {paymentMethods.map((method) => (
+                  <button
+                    key={method.id}
+                    onClick={() => setSelectedPayment(method.id)}
+                    className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                      selectedPayment === method.id
+                        ? darkMode
+                          ? 'border-purple-500 bg-purple-900/30'
+                          : 'border-purple-600 bg-purple-50'
+                        : darkMode
+                          ? 'border-gray-700 bg-gray-700 hover:border-gray-600'
+                          : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {method.name}
+                        </p>
+                        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {method.description}
+                        </p>
+                      </div>
+                      {selectedPayment === method.id && (
+                        <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm">✓</span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Order Summary */}
+          {/* Right Column - Order Summary */}
           <div className="lg:col-span-1">
-            <div className={`rounded-2xl p-8 shadow-2xl sticky top-24 ${
-              darkMode ? 'bg-gray-800' : 'bg-white'
-            }`}>
-              <h2 className={`text-2xl font-black mb-6 ${
-                darkMode ? 'text-white' : 'text-gray-900'
-              }`}>Order Summary</h2>
+            <div className={`rounded-2xl p-6 shadow-xl sticky top-24 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+              <h2 className={`text-2xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                Order Summary
+              </h2>
 
-              {/* Price Breakdown */}
               <div className="space-y-4 mb-6">
                 <div className="flex justify-between">
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                    Subtotal
-                  </span>
-                  <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                    ₹{subtotal}
-                  </span>
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Subtotal</span>
+                  <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>₹{subtotal}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                    Shipping
-                  </span>
-                  <span className={`font-bold ${
-                    shipping === 0 ? 'text-green-500' : darkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
+                  <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Shipping</span>
+                  <span className={`font-bold ${shipping === 0 ? 'text-green-500' : darkMode ? 'text-white' : 'text-gray-900'}`}>
                     {shipping === 0 ? 'FREE' : `₹${shipping}`}
                   </span>
                 </div>
@@ -259,32 +348,21 @@ Please confirm my order. Thank you!`;
                 )}
                 <div className={`border-t pt-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                   <div className="flex justify-between items-center">
-                    <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      Total
-                    </span>
-                    <span className={`text-3xl font-black ${
-                      darkMode ? 'text-purple-400' : 'text-purple-600'
-                    }`}>
-                      ₹{total}
-                    </span>
+                    <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Total</span>
+                    <span className={`text-3xl font-black ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>₹{total}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Coupon Code */}
+              {/* Coupon */}
               <div className="mb-6">
-                <label className={`block text-sm font-bold mb-2 ${
-                  darkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  Have a coupon?
+                <label className={`block text-sm font-bold mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Coupon Code
                 </label>
                 {appliedCoupon ? (
                   <div className="flex items-center justify-between bg-green-100 border-2 border-green-500 rounded-lg p-3">
-                    <span className="text-green-700 font-bold">✓ Coupon Applied</span>
-                    <button
-                      onClick={removeCoupon}
-                      className="text-red-600 hover:text-red-700 font-bold"
-                    >
+                    <span className="text-green-700 font-bold">✓ Applied</span>
+                    <button onClick={() => { setAppliedCoupon(null); setDiscount(0); }} className="text-red-600 font-bold">
                       Remove
                     </button>
                   </div>
@@ -295,20 +373,13 @@ Please confirm my order. Thank you!`;
                       value={couponCode}
                       onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
                       placeholder="Enter code"
-                      className={`flex-1 px-4 py-3 rounded-lg border-2 focus:outline-none transition-all ${
-                        darkMode
-                          ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500'
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-purple-600'
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 focus:outline-none ${
+                        darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'
                       }`}
                     />
-                    <button
-                      onClick={applyCoupon}
-                      className={`px-6 py-3 rounded-lg font-bold transition-all ${
-                        darkMode
-                          ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                          : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
-                      }`}
-                    >
+                    <button onClick={applyCoupon} className={`px-6 py-3 rounded-lg font-bold ${
+                      darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+                    }`}>
                       Apply
                     </button>
                   </div>
@@ -318,47 +389,38 @@ Please confirm my order. Thank you!`;
                 </p>
               </div>
 
-              {/* Checkout Button */}
+              {/* Place Order Button */}
               <button
-                onClick={handleWhatsAppOrder}
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-4 rounded-xl font-black text-lg hover:from-green-500 hover:to-emerald-500 transition-all duration-300 transform hover:scale-105 shadow-xl mb-4 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? '⏳ Processing...' : '📲 Place Order via WhatsApp'}
-              </button>
-
-              <button
-                onClick={() => navigate('/cart')}
-                className={`w-full py-3 rounded-xl font-bold transition-all ${
-                  darkMode
-                    ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                onClick={handlePlaceOrder}
+                disabled={!selectedPayment || loading}
+                className={`w-full py-4 rounded-xl font-black text-lg transition-all mb-4 ${
+                  selectedPayment && !loading
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-500 hover:to-pink-500 transform hover:scale-105'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
+                {loading ? '⏳ Processing...' : `Place Order • ₹${total}`}
+              </button>
+
+              <button onClick={() => navigate('/cart')} className={`w-full py-3 rounded-xl font-bold ${
+                darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300'
+              }`}>
                 ← Back to Cart
               </button>
 
               {/* Trust Badges */}
-              <div className={`mt-6 pt-6 border-t space-y-3 ${
-                darkMode ? 'border-gray-700' : 'border-gray-200'
-              }`}>
+              <div className={`mt-6 pt-6 border-t space-y-3 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                 <div className="flex items-center gap-3">
                   <span className="text-green-500 text-xl">✓</span>
-                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Secure Payment
-                  </span>
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Secure Payment</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-green-500 text-xl">✓</span>
-                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    Order Tracking Available
-                  </span>
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>7 Day Return</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-green-500 text-xl">✓</span>
-                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    24/7 Customer Support
-                  </span>
+                  <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Free Shipping over ₹500</span>
                 </div>
               </div>
             </div>
