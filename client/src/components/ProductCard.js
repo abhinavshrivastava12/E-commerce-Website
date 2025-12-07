@@ -1,4 +1,4 @@
-// 📁 client/src/components/ProductCard.js - FIXED WITH WORKING WISHLIST
+// 📁 client/src/components/ProductCard.js - COMPLETE FIX
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
@@ -12,11 +12,22 @@ const ProductCard = ({ product, featured, darkMode }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // ✅ Check if product is in wishlist on mount
+  // ✅ FIXED: Check wishlist on mount and when user changes
   useEffect(() => {
     if (user) {
-      const wishlist = JSON.parse(localStorage.getItem(`wishlist_${user.id}`) || "[]");
-      setIsInWishlist(wishlist.some(item => item.id === product.id || item.id === product._id));
+      const wishlistKey = `wishlist_${user.id}`;
+      const wishlist = JSON.parse(localStorage.getItem(wishlistKey) || "[]");
+      const productId = product.id || product._id;
+      
+      const exists = wishlist.some(item => 
+        String(item.id) === String(productId) || 
+        String(item._id) === String(productId)
+      );
+      
+      setIsInWishlist(exists);
+      console.log("✅ Wishlist check for", product.name, ":", exists);
+    } else {
+      setIsInWishlist(false);
     }
   }, [user, product]);
 
@@ -50,7 +61,7 @@ const ProductCard = ({ product, featured, darkMode }) => {
     });
   };
 
-  // ✅ Toggle Wishlist
+  // ✅ FIXED: Toggle Wishlist with proper storage
   const toggleWishlist = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -68,15 +79,17 @@ const ProductCard = ({ product, featured, darkMode }) => {
 
     const wishlistKey = `wishlist_${user.id}`;
     const wishlist = JSON.parse(localStorage.getItem(wishlistKey) || "[]");
-    const productId = product.id || product._id;
+    const productId = String(product.id || product._id);
 
     if (isInWishlist) {
       // Remove from wishlist
       const updated = wishlist.filter(item => 
-        (item.id !== productId) && (item._id !== productId)
+        String(item.id) !== productId && String(item._id) !== productId
       );
       localStorage.setItem(wishlistKey, JSON.stringify(updated));
       setIsInWishlist(false);
+      
+      console.log("❤️ Removed from wishlist:", product.name);
       toast.info("💔 Removed from wishlist", {
         position: "bottom-right",
         theme: darkMode ? "dark" : "light"
@@ -89,11 +102,17 @@ const ProductCard = ({ product, featured, darkMode }) => {
         name: product.name,
         price: product.price,
         image: product.image,
-        category: product.category
+        category: product.category,
+        addedAt: new Date().toISOString()
       };
+      
       wishlist.push(wishlistItem);
       localStorage.setItem(wishlistKey, JSON.stringify(wishlist));
       setIsInWishlist(true);
+      
+      console.log("❤️ Added to wishlist:", product.name);
+      console.log("❤️ Wishlist now has:", wishlist.length, "items");
+      
       toast.success("❤️ Added to wishlist!", {
         position: "bottom-right",
         theme: darkMode ? "dark" : "light"
@@ -156,12 +175,12 @@ const ProductCard = ({ product, featured, darkMode }) => {
           </div>
         </div>
 
-        {/* Wishlist Button - Fixed */}
+        {/* ✅ FIXED: Wishlist Button */}
         <button
           onClick={toggleWishlist}
           className={`absolute bottom-3 right-3 p-3 rounded-full transition-all duration-300 transform hover:scale-110 z-10 ${
             isInWishlist
-              ? 'bg-red-500 text-white shadow-lg'
+              ? 'bg-red-500 text-white shadow-lg scale-110'
               : darkMode
                 ? 'bg-gray-700 text-white hover:bg-red-500'
                 : 'bg-white text-gray-600 hover:bg-red-500 hover:text-white'

@@ -1,4 +1,4 @@
-// 📁 client/src/pages/Checkout.js - COMPLETE WITH ALL PAYMENT OPTIONS
+// 📁 client/src/pages/Checkout.js - COMPLETE FIX
 import React, { useState } from "react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -27,6 +27,7 @@ const Checkout = () => {
     { id: 'whatsapp', name: '💬 WhatsApp Payment', description: 'Pay via WhatsApp' }
   ];
 
+  // ✅ FIXED: Apply Coupon
   const applyCoupon = async () => {
     if (!couponCode.trim()) {
       toast.warning("⚠️ Please enter a coupon code");
@@ -34,21 +35,27 @@ const Checkout = () => {
     }
 
     try {
+      console.log('🎫 Applying coupon:', couponCode);
+      
       const response = await axios.post("http://localhost:5000/api/coupons/validate", {
-        code: couponCode,
+        code: couponCode.toUpperCase().trim(),
         cartTotal: subtotal
       });
 
+      console.log('✅ Coupon response:', response.data);
+
       setDiscount(response.data.discount);
       setAppliedCoupon(response.data.couponId);
-      toast.success("✅ Coupon applied successfully!");
+      toast.success(`✅ Coupon applied! You saved ₹${response.data.discount}`);
     } catch (error) {
+      console.error('❌ Coupon error:', error.response?.data || error);
       toast.error(error.response?.data?.error || "Invalid coupon code");
       setDiscount(0);
       setAppliedCoupon(null);
     }
   };
 
+  // ✅ FIXED: Razorpay Integration
   const loadRazorpay = () => {
     return new Promise((resolve) => {
       const script = document.createElement('script');
@@ -67,14 +74,19 @@ const Checkout = () => {
       return false;
     }
 
+    // ✅ USE YOUR RAZORPAY KEY HERE
+    const RAZORPAY_KEY = "rzp_test_RoS6kDQGaecjrN"; // 👈 REPLACE THIS
+
     const options = {
-      key: "rzp_test_xxxxxxxxxx", // 👈 REPLACE WITH YOUR RAZORPAY KEY
+      key: RAZORPAY_KEY,
       amount: total * 100,
       currency: "INR",
       name: "Abhi ShoppingZone",
       description: `Order #${orderId}`,
-      handler: async function (response) {
+      image: "/logo.png", // Optional
+      handler: function (response) {
         console.log("✅ Payment Success:", response);
+        toast.success("✅ Payment successful!");
         return true;
       },
       prefill: {
@@ -83,6 +95,12 @@ const Checkout = () => {
       },
       theme: {
         color: "#9333ea"
+      },
+      modal: {
+        ondismiss: function() {
+          console.log('Payment cancelled by user');
+          toast.warning('Payment cancelled');
+        }
       }
     };
 
@@ -95,6 +113,7 @@ const Checkout = () => {
     });
   };
 
+  // ✅ FIXED: Place Order
   const handlePlaceOrder = async () => {
     if (!selectedPayment) {
       toast.warning("⚠️ Please select a payment method");
@@ -119,7 +138,8 @@ const Checkout = () => {
         })),
         total: total,
         paymentMethod: selectedPayment === 'cod' ? 'COD' : 
-                       selectedPayment === 'razorpay' ? 'Razorpay' : 'WhatsApp'
+                       selectedPayment === 'razorpay' ? 'Razorpay' : 
+                       selectedPayment === 'whatsapp' ? 'WhatsApp' : 'Online'
       };
 
       const response = await axios.post(
@@ -133,6 +153,7 @@ const Checkout = () => {
       );
 
       const orderId = response.data.orderId;
+      console.log('✅ Order created:', orderId);
 
       // 2. Mark coupon as used if applied
       if (appliedCoupon) {
@@ -161,7 +182,7 @@ const Checkout = () => {
         }
       }
       else if (selectedPayment === 'whatsapp') {
-        // WhatsApp - Redirect to WhatsApp
+        // ✅ FIXED: WhatsApp - Redirect BEFORE clearing cart
         const message = `Hello! I want to complete payment for my order.
 
 Order ID: ${orderId}
@@ -175,19 +196,21 @@ ${cart.map(item => `• ${item.name} (x${item.quantity}) - ₹${item.price * ite
 
 Please send payment details.`;
 
-        const phoneNumber = "919696400628";
+        const phoneNumber = "919696400628"; // 👈 YOUR WHATSAPP NUMBER
         const encodedMessage = encodeURIComponent(message);
+        const whatsappURL = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
         
-        // Open WhatsApp
-        window.open(`https://wa.me/${phoneNumber}?text=${encodedMessage}`, "_blank");
+        console.log('💬 Opening WhatsApp:', whatsappURL);
         
-        // Show message about checking WhatsApp
-        toast.info("📱 Please complete payment on WhatsApp");
+        // ✅ FIXED: Open WhatsApp in new tab
+        window.open(whatsappURL, "_blank");
         
-        // Clear cart after WhatsApp redirect
+        // Show message and clear cart AFTER opening WhatsApp
+        toast.success("✅ Order placed! Opening WhatsApp...");
+        
         setTimeout(() => {
           clearCart();
-          toast.success("✅ Order placed! Complete payment on WhatsApp.");
+          toast.info("📱 Complete payment on WhatsApp");
           navigate("/orders");
         }, 2000);
       }
@@ -362,7 +385,7 @@ Please send payment details.`;
                 {appliedCoupon ? (
                   <div className="flex items-center justify-between bg-green-100 border-2 border-green-500 rounded-lg p-3">
                     <span className="text-green-700 font-bold">✓ Applied</span>
-                    <button onClick={() => { setAppliedCoupon(null); setDiscount(0); }} className="text-red-600 font-bold">
+                    <button onClick={() => { setAppliedCoupon(null); setDiscount(0); setCouponCode(''); }} className="text-red-600 font-bold">
                       Remove
                     </button>
                   </div>
@@ -385,7 +408,7 @@ Please send payment details.`;
                   </div>
                 )}
                 <p className={`text-xs mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                  Try: SAVE10 or FIRST20
+                  Try: SAVE10, FIRST20, or FLAT100
                 </p>
               </div>
 

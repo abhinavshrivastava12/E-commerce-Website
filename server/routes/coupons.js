@@ -1,18 +1,78 @@
-// 📁 server/routes/coupons.js
+// 📁 server/routes/coupons.js - FIXED WITH SAMPLE COUPONS
 const express = require('express');
 const router = express.Router();
 const Coupon = require('../models/Coupon');
 
-// ✅ Validate Coupon
+// ✅ SAMPLE COUPONS (Will be auto-created if not exist)
+const sampleCoupons = [
+  {
+    code: 'SAVE10',
+    discountType: 'percentage',
+    discountValue: 10,
+    minOrderValue: 0,
+    maxDiscount: 500,
+    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+    usageLimit: 1000,
+    description: 'Get 10% off on all orders'
+  },
+  {
+    code: 'FIRST20',
+    discountType: 'percentage',
+    discountValue: 20,
+    minOrderValue: 500,
+    maxDiscount: 1000,
+    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    usageLimit: 500,
+    description: 'Get 20% off on orders above ₹500'
+  },
+  {
+    code: 'FLAT100',
+    discountType: 'fixed',
+    discountValue: 100,
+    minOrderValue: 1000,
+    maxDiscount: null,
+    expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+    usageLimit: 1000,
+    description: 'Get ₹100 off on orders above ₹1000'
+  }
+];
+
+// ✅ Initialize Sample Coupons (Run once on server start)
+const initializeCoupons = async () => {
+  try {
+    for (const couponData of sampleCoupons) {
+      const exists = await Coupon.findOne({ code: couponData.code });
+      if (!exists) {
+        await Coupon.create(couponData);
+        console.log(`✅ Created coupon: ${couponData.code}`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Coupon initialization error:', error);
+  }
+};
+
+// Run initialization
+initializeCoupons();
+
+// ✅ Validate Coupon - FIXED
 router.post('/validate', async (req, res) => {
   try {
     const { code, cartTotal } = req.body;
 
+    console.log('🎫 Validating coupon:', code, 'for cart total:', cartTotal);
+
+    if (!code || !cartTotal) {
+      return res.status(400).json({ error: 'Coupon code and cart total are required' });
+    }
+
     const coupon = await Coupon.findOne({ 
-      code: code.toUpperCase(),
+      code: code.toUpperCase().trim(),
       isActive: true,
       expiryDate: { $gte: new Date() }
     });
+
+    console.log('🔍 Coupon found:', coupon ? coupon.code : 'Not found');
 
     if (!coupon) {
       return res.status(404).json({ error: "Invalid or expired coupon code" });
@@ -40,6 +100,8 @@ router.post('/validate', async (req, res) => {
     } else {
       discount = coupon.discountValue;
     }
+
+    console.log('✅ Discount calculated:', discount);
 
     res.json({
       valid: true,
