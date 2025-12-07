@@ -19,7 +19,7 @@ const CustomerChatSystem = ({ productId, productName, currentUser, darkMode = fa
   const loadBuyers = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`http://localhost:5000/api/chat/buyers/${productId}`, {
+      const res = await axios.get(`process.env.REACT_APP_API_URL || http://localhost:5000/api/chat/buyers/${productId}`, {
         headers: {
           Authorization: `Bearer ${currentUser.token}`
         }
@@ -54,7 +54,7 @@ const CustomerChatSystem = ({ productId, productName, currentUser, darkMode = fa
   const loadMessages = useCallback(async (buyerId) => {
     try {
       const res = await axios.get(
-        `http://localhost:5000/api/chat/messages/${productId}/${buyerId}`,
+        `process.env.REACT_APP_API_URL || http://localhost:5000/api/chat/messages/${productId}/${buyerId}`,
         {
           headers: {
             Authorization: `Bearer ${currentUser.token}`
@@ -81,7 +81,7 @@ const CustomerChatSystem = ({ productId, productName, currentUser, darkMode = fa
       };
 
       const res = await axios.post(
-        'http://localhost:5000/api/chat/message',
+        'process.env.REACT_APP_API_URL || http://localhost:5000/api/chat/message',
         messageData,
         {
           headers: {

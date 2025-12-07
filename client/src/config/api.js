@@ -1,5 +1,10 @@
 // 📁 client/src/config/api.js - API Configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// ✅ PRODUCTION FIX - Uses environment variable or localhost as fallback
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+                     process.env.REACT_APP_BACKEND_URL || 
+                     'process.env.REACT_APP_API_URL || "http://localhost:5000';
+
+console.log('🌐 API_BASE_URL:', API_BASE_URL); // Debug log
 
 export const API_ENDPOINTS = {
   // Base

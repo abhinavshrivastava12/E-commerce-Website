@@ -37,7 +37,7 @@ const Login = () => {
     try {
       console.log("🔐 Attempting login for:", email);
       
-      const res = await axios.post("http://localhost:5000/api/auth/login", { 
+      const res = await axios.post("process.env.REACT_APP_API_URL || http://localhost:5000/api/auth/login", { 
         email: email.trim(), 
         password 
       });

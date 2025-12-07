@@ -19,7 +19,7 @@ const SellerRegister = () => {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await axios.post('http://localhost:5000/api/seller/auth/register', formData);
+      await axios.post('process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/auth/register', formData);
       toast.success('✅ Registration Successful! Please login.');
       navigate('/seller/login');
     } catch (error) {
