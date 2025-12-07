@@ -82,7 +82,7 @@ const sellerProductRoutes = require('./routes/sellerProducts');
 // =====================================
 
 app.use('/api/auth', authRoutes);
-app.use('/api/orders', orderRoutes);
+app.use('/api/orders', require('./routes/orders'));
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/gemini', geminiRoutes);
