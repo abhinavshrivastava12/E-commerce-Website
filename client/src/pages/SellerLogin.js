@@ -25,7 +25,7 @@ const SellerLogin = () => {
     try {
       console.log("🔄 Attempting seller login for:", email);
       
-      const res = await axios.post('process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/auth/login', {
+      const res = await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/seller/auth/login`, {
         email: email.trim(),
         password: password
       });

@@ -31,7 +31,7 @@ const HomePage = () => {
         setLoading(true);
         
         // Fetch seller products from backend
-        const response = await axios.get("process.env.REACT_APP_API_URL || http://localhost:5000/api/products/all");
+        const response = await axios.get(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/products/all`);
         const sellerProducts = response.data;
         
         console.log("✅ Seller products loaded:", sellerProducts.length);

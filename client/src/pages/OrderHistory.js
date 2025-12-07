@@ -33,7 +33,7 @@ const OrderHistory = () => {
     try {
       console.log("🔄 Fetching orders for user:", user.id);
       
-      const res = await axios.get("process.env.REACT_APP_API_URL || http://localhost:5000/api/orders/my", {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/orders/my`, {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },

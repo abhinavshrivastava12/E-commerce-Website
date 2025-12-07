@@ -46,13 +46,13 @@ const SellerDashboard = () => {
     try {
       setLoading(true);
       
-      const statsRes = await fetch('process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/products/dashboard', {
+      const statsRes = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/seller/products/dashboard`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const statsData = await statsRes.json();
       setStats(statsData);
 
-      const productsRes = await fetch('process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/products/my-products', {
+      const productsRes = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/seller/products/my-products`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const productsData = await productsRes.json();
@@ -107,8 +107,8 @@ const SellerDashboard = () => {
       }
 
       const url = editingProduct 
-        ? `process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/products/update/${editingProduct._id}`
-        : 'process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/products/add';
+        ? `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/seller/products/update/${editingProduct._id}`
+        : `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/seller/products/add`;
       
       const method = editingProduct ? 'PUT' : 'POST';
 
@@ -172,7 +172,7 @@ const SellerDashboard = () => {
     }
 
     try {
-      const res = await fetch(`process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/products/delete/${productId}`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/seller/products/delete/${productId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${seller.token}` }
       });
@@ -189,7 +189,7 @@ const SellerDashboard = () => {
 
   const handleToggleStatus = async (productId) => {
     try {
-      const res = await fetch(`process.env.REACT_APP_API_URL || http://localhost:5000/api/seller/products/toggle-status/${productId}`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/seller/products/toggle-status/${productId}`, {
         method: 'PUT',
         headers: { 
           Authorization: `Bearer ${seller.token}`,

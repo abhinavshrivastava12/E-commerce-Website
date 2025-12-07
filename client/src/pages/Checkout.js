@@ -37,7 +37,7 @@ const Checkout = () => {
     try {
       console.log('🎫 Applying coupon:', couponCode);
       
-      const response = await axios.post("process.env.REACT_APP_API_URL || http://localhost:5000/api/coupons/validate", {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/coupons/validate`, {
         code: couponCode.toUpperCase().trim(),
         cartTotal: subtotal
       });
@@ -143,7 +143,7 @@ const Checkout = () => {
       };
 
       const response = await axios.post(
-        "process.env.REACT_APP_API_URL || http://localhost:5000/api/orders",
+        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/orders`,
         orderData,
         {
           headers: {
@@ -157,7 +157,7 @@ const Checkout = () => {
 
       // 2. Mark coupon as used if applied
       if (appliedCoupon) {
-        await axios.post("process.env.REACT_APP_API_URL || http://localhost:5000/api/coupons/use", {
+        await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/coupons/use`, {
           couponId: appliedCoupon
         });
       }

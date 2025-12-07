@@ -37,16 +37,16 @@ export const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  const login = (userData) => {
+    const login = (userData) => {
     console.log("🔐 Login called with:", userData);
     
-    // Validate incoming data
-    if (!userData.token) {
+    // ✅ SAHI VALIDATION
+    if (!userData || !userData.token) {
       console.error("❌ Login failed: No token provided");
       return false;
     }
 
-    // Structure user data properly
+    // ✅ PROPER USER OBJECT
     const userWithToken = {
       id: userData.user?.id || userData.user?._id || userData.id,
       name: userData.user?.name || userData.name,
