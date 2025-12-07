@@ -1,4 +1,4 @@
-// 📁 client/src/pages/Checkout.js - COMPLETE FIX
+// 📁 client/src/pages/Checkout.js - COMPLETE PAYMENT FIX
 import React, { useState } from "react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
@@ -22,12 +22,12 @@ const Checkout = () => {
   const total = subtotal + shipping - discount;
 
   const paymentMethods = [
-    { id: 'razorpay', name: '💳 Razorpay', description: 'Card/UPI/NetBanking' },
     { id: 'cod', name: '🚚 Cash on Delivery', description: 'Pay when delivered' },
+    { id: 'razorpay', name: '💳 Razorpay', description: 'Card/UPI/NetBanking' },
     { id: 'whatsapp', name: '💬 WhatsApp Payment', description: 'Pay via WhatsApp' }
   ];
 
-  // ✅ FIXED: Apply Coupon
+  // ✅ Apply Coupon
   const applyCoupon = async () => {
     if (!couponCode.trim()) {
       toast.warning("⚠️ Please enter a coupon code");
@@ -35,27 +35,26 @@ const Checkout = () => {
     }
 
     try {
-      console.log('🎫 Applying coupon:', couponCode);
-      
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/coupons/validate`, {
-        code: couponCode.toUpperCase().trim(),
-        cartTotal: subtotal
-      });
-
-      console.log('✅ Coupon response:', response.data);
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL}/api/coupons/validate`,
+        {
+          code: couponCode.toUpperCase().trim(),
+          cartTotal: subtotal
+        }
+      );
 
       setDiscount(response.data.discount);
       setAppliedCoupon(response.data.couponId);
       toast.success(`✅ Coupon applied! You saved ₹${response.data.discount}`);
     } catch (error) {
-      console.error('❌ Coupon error:', error.response?.data || error);
+      console.error('Coupon error:', error);
       toast.error(error.response?.data?.error || "Invalid coupon code");
       setDiscount(0);
       setAppliedCoupon(null);
     }
   };
 
-  // ✅ FIXED: Razorpay Integration
+  // ✅ Load Razorpay Script
   const loadRazorpay = () => {
     return new Promise((resolve) => {
       const script = document.createElement('script');
@@ -66,26 +65,24 @@ const Checkout = () => {
     });
   };
 
+  // ✅ Razorpay Payment Handler
   const handleRazorpayPayment = async (orderId) => {
     const res = await loadRazorpay();
 
     if (!res) {
-      toast.error('Razorpay SDK failed to load');
+      toast.error('Failed to load payment gateway');
       return false;
     }
 
-    // ✅ USE YOUR RAZORPAY KEY HERE
-    const RAZORPAY_KEY = "rzp_test_RoS6kDQGaecjrN"; // 👈 REPLACE THIS
-
     const options = {
-      key: RAZORPAY_KEY,
+      key: "rzp_test_RoS6kDQGaecjrN", // 👈 Your Razorpay Key
       amount: total * 100,
       currency: "INR",
       name: "Abhi ShoppingZone",
       description: `Order #${orderId}`,
-      image: "/logo.png", // Optional
+      order_id: orderId,
       handler: function (response) {
-        console.log("✅ Payment Success:", response);
+        console.log("Payment Success:", response);
         toast.success("✅ Payment successful!");
         return true;
       },
@@ -98,7 +95,7 @@ const Checkout = () => {
       },
       modal: {
         ondismiss: function() {
-          console.log('Payment cancelled by user');
+          console.log('Payment cancelled');
           toast.warning('Payment cancelled');
         }
       }
@@ -113,7 +110,7 @@ const Checkout = () => {
     });
   };
 
-  // ✅ FIXED: Place Order
+  // ✅ Main Place Order Function
   const handlePlaceOrder = async () => {
     if (!selectedPayment) {
       toast.warning("⚠️ Please select a payment method");
@@ -129,7 +126,9 @@ const Checkout = () => {
     setLoading(true);
 
     try {
-      // 1. Create order in database
+      // 1️⃣ Create Order in Database
+      console.log("📦 Creating order...");
+      
       const orderData = {
         cart: cart.map(item => ({
           name: item.name,
@@ -139,11 +138,11 @@ const Checkout = () => {
         total: total,
         paymentMethod: selectedPayment === 'cod' ? 'COD' : 
                        selectedPayment === 'razorpay' ? 'Razorpay' : 
-                       selectedPayment === 'whatsapp' ? 'WhatsApp' : 'Online'
+                       'WhatsApp'
       };
 
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/orders`,
+        `${process.env.REACT_APP_API_URL}/api/orders`,
         orderData,
         {
           headers: {
@@ -155,37 +154,41 @@ const Checkout = () => {
       const orderId = response.data.orderId;
       console.log('✅ Order created:', orderId);
 
-      // 2. Mark coupon as used if applied
+      // 2️⃣ Mark Coupon as Used
       if (appliedCoupon) {
-        await axios.post(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/coupons/use`, {
-          couponId: appliedCoupon
-        });
+        try {
+          await axios.post(
+            `${process.env.REACT_APP_API_URL}/api/coupons/use`,
+            { couponId: appliedCoupon }
+          );
+        } catch (err) {
+          console.error('Coupon use error:', err);
+        }
       }
 
-      // 3. Handle payment method
+      // 3️⃣ Handle Payment Methods
       if (selectedPayment === 'cod') {
-        // COD - Direct confirmation
-        toast.success("✅ Order placed successfully! Pay on delivery.");
+        // COD - Direct Success
+        toast.success("✅ Order placed! Pay on delivery.");
         clearCart();
         setTimeout(() => navigate("/orders"), 1500);
       } 
       else if (selectedPayment === 'razorpay') {
-        // Razorpay - Show payment gateway
+        // Razorpay Payment
         const paymentSuccess = await handleRazorpayPayment(orderId);
         
         if (paymentSuccess) {
-          toast.success("✅ Payment successful! Order confirmed.");
+          toast.success("✅ Payment successful!");
           clearCart();
           setTimeout(() => navigate("/orders"), 1500);
         } else {
-          toast.error("❌ Payment failed. Please try again.");
+          toast.error("❌ Payment failed");
         }
       }
       else if (selectedPayment === 'whatsapp') {
-        // ✅ FIXED: WhatsApp - Redirect BEFORE clearing cart
-        const message = `Hello! I want to complete payment for my order.
+        // WhatsApp Payment
+        const message = `Hello! I want to complete payment for Order #${orderId}
 
-Order ID: ${orderId}
 Customer: ${user.name}
 Email: ${user.email}
 
@@ -196,18 +199,14 @@ ${cart.map(item => `• ${item.name} (x${item.quantity}) - ₹${item.price * ite
 
 Please send payment details.`;
 
-        const phoneNumber = "919696400628"; // 👈 YOUR WHATSAPP NUMBER
-        const encodedMessage = encodeURIComponent(message);
-        const whatsappURL = `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
+        const phoneNumber = "919696400628";
+        const whatsappURL = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
         
-        console.log('💬 Opening WhatsApp:', whatsappURL);
-        
-        // ✅ FIXED: Open WhatsApp in new tab
+        // Open WhatsApp
         window.open(whatsappURL, "_blank");
         
-        // Show message and clear cart AFTER opening WhatsApp
+        // Show success and clear cart
         toast.success("✅ Order placed! Opening WhatsApp...");
-        
         setTimeout(() => {
           clearCart();
           toast.info("📱 Complete payment on WhatsApp");
@@ -216,8 +215,9 @@ Please send payment details.`;
       }
 
     } catch (error) {
-      console.error("❌ Order error:", error);
-      toast.error(error.response?.data?.error || "Failed to place order");
+      console.error("Order Error:", error);
+      const errorMsg = error.response?.data?.error || "Failed to place order";
+      toast.error("❌ " + errorMsg);
     } finally {
       setLoading(false);
     }
@@ -267,7 +267,7 @@ Please send payment details.`;
         </h1>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left Column - Items & Payment Methods */}
+          {/* Left Column */}
           <div className="lg:col-span-2 space-y-6">
             {/* Order Items */}
             <div className={`rounded-2xl p-6 shadow-xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
