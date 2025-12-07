@@ -1,5 +1,5 @@
-// 📁 client/src/pages/Checkout.js - COMPLETE PAYMENT FIX
-import React, { useState } from "react";
+// 📁 client/src/pages/Checkout.js
+import React, { useState, useEffect } from "react"; // ✅ Fixed: Added useEffect
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -7,15 +7,38 @@ import { toast } from "react-toastify";
 import axios from "axios";
 
 const Checkout = () => {
+  // ✅ FIX: State and Effects must be INSIDE the component
   const { cart, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
+  
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [selectedPayment, setSelectedPayment] = useState("");
+
+  // ✅ FIX: useEffect moved inside the component
+  useEffect(() => {
+    const wakeUpBackend = async () => {
+      try {
+        const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+        console.log("🔄 Waking up backend...");
+        
+        await axios.get(`${API_URL}/api/test`, { timeout: 30000 });
+        
+        
+        console.log("✅ Backend is awake!");
+      } catch (error) {
+        console.log("⚠️ Backend wake-up failed, will retry on order");
+      }
+    };
+
+    wakeUpBackend();
+  }, []);
+
+  // ... Rest of your logic remains exactly the same ...
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shipping = subtotal > 500 ? 0 : 50;
@@ -112,8 +135,6 @@ const Checkout = () => {
 
     try {
       console.log("📦 Creating order...");
-      console.log("API URL:", process.env.REACT_APP_API_URL || "http://localhost:5000");
-      console.log("User Token:", user.token ? "Present" : "Missing");
       
       const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
       
@@ -129,8 +150,9 @@ const Checkout = () => {
                        'WhatsApp'
       };
 
-      console.log("Order Data:", orderData);
-
+      console.log("📤 Sending order to:", `${API_URL}/api/orders`);
+      
+      // ✅ INCREASED TIMEOUT TO 30 SECONDS
       const response = await axios.post(
         `${API_URL}/api/orders`,
         orderData,
@@ -139,7 +161,7 @@ const Checkout = () => {
             'Authorization': `Bearer ${user.token}`,
             'Content-Type': 'application/json'
           },
-          timeout: 10000 // 10 second timeout
+          timeout: 30000 
         }
       );
 
@@ -147,19 +169,18 @@ const Checkout = () => {
 
       const orderId = response.data.orderId;
 
-      // Mark coupon as used
       if (appliedCoupon) {
         try {
           await axios.post(
             `${API_URL}/api/coupons/use`,
-            { couponId: appliedCoupon }
+            { couponId: appliedCoupon },
+            { timeout: 10000 }
           );
         } catch (err) {
-          console.error('Coupon use error:', err);
+          console.error('Coupon error:', err);
         }
       }
 
-      // ✅ Handle Payment Methods
       if (selectedPayment === 'cod') {
         toast.success("✅ Order placed! Pay on delivery.");
         clearCart();
@@ -169,8 +190,8 @@ const Checkout = () => {
         }, 1000);
       } 
       else if (selectedPayment === 'razorpay') {
-        const paymentSuccess = await handleRazorpayPayment(orderId);
         setLoading(false);
+        const paymentSuccess = await handleRazorpayPayment(orderId);
         
         if (paymentSuccess) {
           toast.success("✅ Payment successful!");
@@ -212,22 +233,22 @@ Please send payment details.`;
 
     } catch (error) {
       console.error("❌ Order Error:", error);
-      console.error("Error Response:", error.response?.data);
-      console.error("Error Status:", error.response?.status);
-      
       setLoading(false);
       
       let errorMessage = "Failed to place order";
       
       if (error.code === 'ECONNABORTED') {
-        errorMessage = "Request timeout. Please check your internet connection.";
+        errorMessage = "⏱️ Request timeout. Server is waking up (Render free tier). Please try again in 30 seconds.";
+        toast.error(errorMessage, { autoClose: 5000 });
       } else if (error.response) {
         errorMessage = error.response.data?.error || error.response.data?.message || errorMessage;
+        toast.error("❌ " + errorMessage);
       } else if (error.request) {
-        errorMessage = "Cannot connect to server. Please check if backend is running.";
+        errorMessage = "Cannot connect to server. Backend might be sleeping. Please wait and try again.";
+        toast.error(errorMessage, { autoClose: 5000 });
+      } else {
+        toast.error("❌ " + errorMessage);
       }
-      
-      toast.error("❌ " + errorMessage);
     }
   };
 
