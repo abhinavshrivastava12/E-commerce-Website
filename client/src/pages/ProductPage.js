@@ -1,4 +1,4 @@
-// 📁 client/src/pages/ProductPage.js - COMPLETE FIXED VERSION
+// 📁 client/src/pages/ProductPage.js - CHAT BUTTON POSITION FIX
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import staticProducts from "../data/products";
@@ -25,17 +25,14 @@ const ProductPage = () => {
   const [showAI, setShowAI] = useState(false);
   const [showChat, setShowChat] = useState(false);
   
-  // Fetch product data
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        // First check static products
         const staticProduct = staticProducts.find((p) => p.id === parseInt(id));
         
         if (staticProduct) {
           setProduct(staticProduct);
         } else {
-          // If not in static, fetch from backend (seller product)
           const response = await axios.get(`${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/products/${id}`);
           setProduct(response.data);
         }
@@ -49,7 +46,6 @@ const ProductPage = () => {
     fetchProduct();
   }, [id]);
 
-  // Set page title and load reviews
   useEffect(() => {
     document.title = `Abhi ShoppingZone - ${product?.name || "Product Details"}`;
     if (product) {
@@ -58,10 +54,8 @@ const ProductPage = () => {
     }
   }, [product, id]);
 
-  // Product images array
   const productImages = product ? [product.image, product.image, product.image] : [];
   
-  // Related products
   const relatedProducts = product 
     ? staticProducts.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4) 
     : [];
@@ -80,7 +74,7 @@ const ProductPage = () => {
       theme: darkMode ? "dark" : "light"
     });
   };
- // eslint-disable-next-line
+
   const handleSubmitReview = (e) => {
     e.preventDefault();
     const newReview = {
@@ -245,12 +239,28 @@ const ProductPage = () => {
         )}
       </div>
       
+      {/* ✅ FIXED: Chat Buttons Position - Better Spacing */}
       {!showAI && !showChat && (
         <>
-          <button onClick={() => setShowAI(true)} className={`fixed bottom-24 right-6 z-40 p-4 rounded-full shadow-2xl transition-all hover:scale-110 ${darkMode ? 'bg-purple-600 text-white' : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'}`} title="Get AI Recommendations">
+          {/* AI Chatbot Button */}
+          <button 
+            onClick={() => setShowAI(true)} 
+            className={`fixed bottom-32 right-6 z-40 p-4 rounded-full shadow-2xl transition-all hover:scale-110 ${
+              darkMode ? 'bg-purple-600 text-white' : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
+            }`} 
+            title="Get AI Recommendations"
+          >
             <span className="text-2xl">🤖</span>
           </button>
-          <button onClick={() => setShowChat(true)} className={`fixed bottom-6 right-6 z-40 p-4 rounded-full shadow-2xl transition-all hover:scale-110 ${darkMode ? 'bg-blue-600 text-white' : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'}`} title="Chat with Buyers">
+          
+          {/* Customer Chat Button */}
+          <button 
+            onClick={() => setShowChat(true)} 
+            className={`fixed bottom-6 right-6 z-40 p-4 rounded-full shadow-2xl transition-all hover:scale-110 ${
+              darkMode ? 'bg-blue-600 text-white' : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white'
+            }`} 
+            title="Chat with Buyers"
+          >
             <span className="text-2xl">💬</span>
           </button>
         </>

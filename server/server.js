@@ -12,7 +12,7 @@ const server = http.createServer(app);
 // ✅ PRODUCTION CORS - Multiple origins
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://your-frontend-app.onrender.com', // 👈 UPDATE THIS AFTER FRONTEND DEPLOY
+  'https://abhi-shoppingzone-frontend.onrender.com', // 👈 UPDATE THIS AFTER FRONTEND DEPLOY
   process.env.CLIENT_URL
 ].filter(Boolean);
 
