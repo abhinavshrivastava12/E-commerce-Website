@@ -27,7 +27,6 @@ const Checkout = () => {
     { id: 'whatsapp', name: '💬 WhatsApp Payment', description: 'Pay via WhatsApp' }
   ];
 
-  // ✅ Apply Coupon
   const applyCoupon = async () => {
     if (!couponCode.trim()) {
       toast.warning("⚠️ Please enter a coupon code");
@@ -36,25 +35,20 @@ const Checkout = () => {
 
     try {
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/coupons/validate`,
-        {
-          code: couponCode.toUpperCase().trim(),
-          cartTotal: subtotal
-        }
+        `${process.env.REACT_APP_API_URL || "http://localhost:5000"}/api/coupons/validate`,
+        { code: couponCode.toUpperCase().trim(), cartTotal: subtotal }
       );
 
       setDiscount(response.data.discount);
       setAppliedCoupon(response.data.couponId);
       toast.success(`✅ Coupon applied! You saved ₹${response.data.discount}`);
     } catch (error) {
-      console.error('Coupon error:', error);
       toast.error(error.response?.data?.error || "Invalid coupon code");
       setDiscount(0);
       setAppliedCoupon(null);
     }
   };
 
-  // ✅ Load Razorpay Script
   const loadRazorpay = () => {
     return new Promise((resolve) => {
       const script = document.createElement('script');
@@ -65,52 +59,43 @@ const Checkout = () => {
     });
   };
 
-  // ✅ Razorpay Payment Handler
   const handleRazorpayPayment = async (orderId) => {
     const res = await loadRazorpay();
-
     if (!res) {
       toast.error('Failed to load payment gateway');
       return false;
     }
 
-    const options = {
-      key: "rzp_test_RoS6kDQGaecjrN", // 👈 Your Razorpay Key
-      amount: total * 100,
-      currency: "INR",
-      name: "Abhi ShoppingZone",
-      description: `Order #${orderId}`,
-      order_id: orderId,
-      handler: function (response) {
-        console.log("Payment Success:", response);
-        toast.success("✅ Payment successful!");
-        return true;
-      },
-      prefill: {
-        name: user.name,
-        email: user.email
-      },
-      theme: {
-        color: "#9333ea"
-      },
-      modal: {
-        ondismiss: function() {
-          console.log('Payment cancelled');
-          toast.warning('Payment cancelled');
-        }
-      }
-    };
-
-    const razorpay = new window.Razorpay(options);
-    
     return new Promise((resolve) => {
-      razorpay.on('payment.success', () => resolve(true));
-      razorpay.on('payment.error', () => resolve(false));
+      const options = {
+        key: "rzp_test_RoS6kDQGaecjrN",
+        amount: total * 100,
+        currency: "INR",
+        name: "Abhi ShoppingZone",
+        description: `Order #${orderId}`,
+        order_id: orderId,
+        handler: function (response) {
+          console.log("Payment Success:", response);
+          resolve(true);
+        },
+        prefill: {
+          name: user.name,
+          email: user.email
+        },
+        theme: { color: "#9333ea" },
+        modal: {
+          ondismiss: function() {
+            resolve(false);
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.on('payment.failed', () => resolve(false));
       razorpay.open();
     });
   };
 
-  // ✅ Main Place Order Function
   const handlePlaceOrder = async () => {
     if (!selectedPayment) {
       toast.warning("⚠️ Please select a payment method");
@@ -126,8 +111,11 @@ const Checkout = () => {
     setLoading(true);
 
     try {
-      // 1️⃣ Create Order in Database
       console.log("📦 Creating order...");
+      console.log("API URL:", process.env.REACT_APP_API_URL || "http://localhost:5000");
+      console.log("User Token:", user.token ? "Present" : "Missing");
+      
+      const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
       
       const orderData = {
         cart: cart.map(item => ({
@@ -141,24 +129,29 @@ const Checkout = () => {
                        'WhatsApp'
       };
 
+      console.log("Order Data:", orderData);
+
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/orders`,
+        `${API_URL}/api/orders`,
         orderData,
-        {
-          headers: {
-            Authorization: `Bearer ${user.token}`
-          }
+        { 
+          headers: { 
+            'Authorization': `Bearer ${user.token}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000 // 10 second timeout
         }
       );
 
-      const orderId = response.data.orderId;
-      console.log('✅ Order created:', orderId);
+      console.log('✅ Order Response:', response.data);
 
-      // 2️⃣ Mark Coupon as Used
+      const orderId = response.data.orderId;
+
+      // Mark coupon as used
       if (appliedCoupon) {
         try {
           await axios.post(
-            `${process.env.REACT_APP_API_URL}/api/coupons/use`,
+            `${API_URL}/api/coupons/use`,
             { couponId: appliedCoupon }
           );
         } catch (err) {
@@ -166,27 +159,30 @@ const Checkout = () => {
         }
       }
 
-      // 3️⃣ Handle Payment Methods
+      // ✅ Handle Payment Methods
       if (selectedPayment === 'cod') {
-        // COD - Direct Success
         toast.success("✅ Order placed! Pay on delivery.");
         clearCart();
-        setTimeout(() => navigate("/orders"), 1500);
+        setLoading(false);
+        setTimeout(() => {
+          navigate("/orders", { replace: true });
+        }, 1000);
       } 
       else if (selectedPayment === 'razorpay') {
-        // Razorpay Payment
         const paymentSuccess = await handleRazorpayPayment(orderId);
+        setLoading(false);
         
         if (paymentSuccess) {
           toast.success("✅ Payment successful!");
           clearCart();
-          setTimeout(() => navigate("/orders"), 1500);
+          setTimeout(() => {
+            navigate("/orders", { replace: true });
+          }, 1000);
         } else {
-          toast.error("❌ Payment failed");
+          toast.error("❌ Payment failed or cancelled");
         }
       }
       else if (selectedPayment === 'whatsapp') {
-        // WhatsApp Payment
         const message = `Hello! I want to complete payment for Order #${orderId}
 
 Customer: ${user.name}
@@ -202,24 +198,36 @@ Please send payment details.`;
         const phoneNumber = "919696400628";
         const whatsappURL = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
         
-        // Open WhatsApp
         window.open(whatsappURL, "_blank");
-        
-        // Show success and clear cart
         toast.success("✅ Order placed! Opening WhatsApp...");
+        
+        setLoading(false);
+        clearCart();
+        
         setTimeout(() => {
-          clearCart();
           toast.info("📱 Complete payment on WhatsApp");
-          navigate("/orders");
-        }, 2000);
+          navigate("/orders", { replace: true });
+        }, 1500);
       }
 
     } catch (error) {
-      console.error("Order Error:", error);
-      const errorMsg = error.response?.data?.error || "Failed to place order";
-      toast.error("❌ " + errorMsg);
-    } finally {
+      console.error("❌ Order Error:", error);
+      console.error("Error Response:", error.response?.data);
+      console.error("Error Status:", error.response?.status);
+      
       setLoading(false);
+      
+      let errorMessage = "Failed to place order";
+      
+      if (error.code === 'ECONNABORTED') {
+        errorMessage = "Request timeout. Please check your internet connection.";
+      } else if (error.response) {
+        errorMessage = error.response.data?.error || error.response.data?.message || errorMessage;
+      } else if (error.request) {
+        errorMessage = "Cannot connect to server. Please check if backend is running.";
+      }
+      
+      toast.error("❌ " + errorMessage);
     }
   };
 
@@ -422,7 +430,14 @@ Please send payment details.`;
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                {loading ? '⏳ Processing...' : `Place Order • ₹${total}`}
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-spin">⏳</span>
+                    Processing...
+                  </span>
+                ) : (
+                  `Place Order • ₹${total}`
+                )}
               </button>
 
               <button onClick={() => navigate('/cart')} className={`w-full py-3 rounded-xl font-bold ${

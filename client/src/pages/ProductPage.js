@@ -75,6 +75,7 @@ const ProductPage = () => {
     });
   };
 
+  // eslint-disable-next-line
   const handleSubmitReview = (e) => {
     e.preventDefault();
     const newReview = {
